@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steve's Pub Trivia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#12100d;
+    --surface:#1c1712;
+    --surface-2:#241d16;
+    --surface-3:#2c231a;
+    --line: rgba(241,232,214,0.10);
+    --chalk:#f1e8d6;
+    --muted:#a99a83;
+    --brass:#d4a545;
+    --brass-2:#f0cf7a;
+    --amber:#e08a3c;
+    --felt:#33503f;
+    --oxblood:#a24238;
+    --denim:#3f6a8a;
+    --plum:#7a4f8a;
+    --phl-red:#e81828;
+    --phl-teal:#004953;
+    --shadow: 0 20px 50px rgba(0,0,0,0.45);
+    color-scheme: dark;
+  }
+
+  *{ box-sizing:border-box; }
+  html, body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--chalk);
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  #app{
+    position:relative;
+    height:100%;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(ellipse 120% 60% at 50% -10%, rgba(212,165,69,0.10), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px),
+      var(--bg);
+    padding: env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  }
+
+  /* ---------- Header ---------- */
+  .board-header{
+    flex: 0 0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 1rem;
+    padding: clamp(0.75rem, 2vh, 1.5rem) clamp(1rem, 3vw, 2.5rem);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand{ display:flex; align-items:center; gap: 0.9rem; min-width:0; }
+  .pint-icon{ flex:0 0 auto; width: clamp(28px,4vh,44px); height: clamp(28px,4vh,44px); }
+  .brand-text h1{
+    margin:0;
+    font-family:'Permanent Marker', cursive;
+    color: var(--brass-2);
+    font-size: clamp(1.4rem, 4.2vh, 2.6rem);
+    line-height:1;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+    letter-spacing: 0.5px;
+  }
+  .brand-text p{
+    margin: 0.35rem 0 0;
+    font-family:'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: clamp(0.6rem, 1.4vh, 0.85rem);
+    color: var(--muted);
+  }
+  .round-pill{
+    flex: 0 0 auto;
+    font-family:'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: clamp(0.7rem, 1.7vh, 1rem);
+    color: var(--chalk);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 0.55em 1.1em;
+    border-radius: 999px;
+    white-space: nowrap;
+    max-width: 46vw;
+    overflow:hidden;
+    text-overflow: ellipsis;
+  }
+  .round-pill b{ color: var(--brass); }
+
+  /* ---------- Board ---------- */
+  .board{
+    flex: 1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    gap: clamp(0.5rem, 1.4vh, 1rem);
+    padding: clamp(0.75rem, 2vh, 1.5rem) clamp(1rem, 3vw, 2.5rem);
+    overflow-y: auto;
+  }
+  .row{
+    position:relative;
+    flex: 1 1 0;
+    min-height: 52px;
+    display:flex;
+    align-items:center;
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 0 clamp(0.9rem, 2.2vw, 1.75rem);
+    overflow:hidden;
+    transition: transform 0.4s ease;
+  }
+  .row .fill{
+    position:absolute; inset:0;
+    width: var(--pct, 0%);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 32%, transparent), transparent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+    pointer-events:none;
+  }
+  .row.lead{ border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass) 30%, transparent) inset; }
+
+  .rank{
+    position:relative;
+    flex: 0 0 auto;
+    width: clamp(2.1rem, 6vh, 3.4rem);
+    height: clamp(2.1rem, 6vh, 3.4rem);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Oswald', sans-serif;
+    font-weight:600;
+    font-size: clamp(1rem, 2.6vh, 1.5rem);
+    background: var(--surface-3);
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+  .rank.r1{ background: linear-gradient(155deg, var(--brass-2), #9c7420); color:#2a1e00; border-color: transparent; }
+  .rank.r2{ background: linear-gradient(155deg, #e7e2d6, #9a978d); color:#2a2a26; border-color: transparent; }
+  .rank.r3{ background: linear-gradient(155deg, #d79a6a, #8a4f27); color:#2a1200; border-color: transparent; }
+
+  .team-id{ position:relative; flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:0.6rem; }
+  .team-dot{ flex:0 0 auto; width:0.6rem; height:0.6rem; border-radius:50%; background: var(--accent); }
+  .team-name{
+    font-family:'Oswald', sans-serif;
+    font-weight:600;
+    font-size: clamp(1.1rem, 3.6vh, 2.1rem);
+    color: var(--chalk);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .team-mascot{
+    flex:0 0 auto;
+    width: clamp(1.6rem, 4.6vh, 2.6rem);
+    height: clamp(1.6rem, 4.6vh, 2.6rem);
+  }
+  .team-mascot svg{ width:100%; height:100%; display:block; }
+
+  .team-score{
+    position:relative;
+    flex: 0 0 auto;
+    font-family:'Oswald', sans-serif;
+    font-weight:700;
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(1.5rem, 5.5vh, 3.2rem);
+    color: var(--brass-2);
+    min-width: 3ch;
+    text-align:right;
+  }
+
+  .empty-board{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    color: var(--muted); font-family:'Oswald', sans-serif; letter-spacing:1px; text-transform:uppercase;
+    text-align:center; padding: 2rem;
+  }
+
+  /* ---------- Corner toggles ---------- */
+  .corner-toggles{
+    position: fixed;
+    right: clamp(0.75rem, 2vw, 1.5rem);
+    bottom: clamp(0.75rem, 2vh, 1.5rem);
+    z-index: 20;
+    display:flex;
+    gap: 0.5rem;
+  }
+  .corner-btn{
+    background: var(--surface-2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    font-family:'Inter', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s ease, color 0.2s ease, background 0.2s ease;
+    white-space:nowrap;
+  }
+  .corner-btn:hover, .corner-btn:focus-visible{ opacity:1; color: var(--chalk); background: var(--surface-3); }
+  .corner-btn.primary{ background: var(--brass); color:#241a03; opacity:0.95; border-color:transparent; }
+  .corner-btn.primary:hover{ background: var(--brass-2); opacity:1; }
+
+  /* ---------- Drawer ---------- */
+  .backdrop{
+    position:fixed; inset:0; background: rgba(0,0,0,0.55);
+    opacity:0; pointer-events:none; transition: opacity 0.25s ease;
+    z-index: 30;
+  }
+  .backdrop.open{ opacity:1; pointer-events:auto; }
+
+  .drawer{
+    position:fixed; top:0; right:0; height:100%;
+    width: min(480px, 100vw);
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(.2,.8,.2,1);
+    z-index: 31;
+    display:flex; flex-direction:column;
+  }
+  .drawer.open{ transform: translateX(0); }
+
+  .drawer-head{
+    flex:0 0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .drawer-head h2{
+    margin:0; font-family:'Permanent Marker', cursive; color: var(--brass-2);
+    font-size:1.3rem; font-weight:400;
+  }
+  .icon-btn{
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    width: 2.1rem; height:2.1rem; border-radius:8px; cursor:pointer; font-size:1rem;
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  }
+  .icon-btn:hover{ color: var(--chalk); border-color: var(--muted); }
+
+  .drawer-body{ flex:1 1 auto; overflow-y:auto; padding: 1.1rem 1.25rem 2rem; display:flex; flex-direction:column; gap:1.75rem; }
+
+  .note{
+    font-size:0.78rem; color: var(--muted); background: var(--surface-2);
+    border: 1px dashed var(--line); border-radius:10px; padding: 0.65rem 0.85rem; line-height:1.4;
+  }
+
+  section.panel h3{
+    margin: 0 0 0.75rem;
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:0.85rem; color: var(--amber);
+  }
+
+  .field-row{ display:flex; gap:0.5rem; flex-wrap:wrap; }
+  input[type="text"], input[type="number"]{
+    background: var(--surface-2); border:1px solid var(--line); color: var(--chalk);
+    border-radius:8px; padding:0.55rem 0.7rem; font-family:'Inter', sans-serif; font-size:0.9rem;
+    min-width:0;
+  }
+  input[type="text"]:focus, input[type="number"]:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+  input[type="text"].name-input{ flex:1 1 140px; }
+
+  .btn{
+    font-family:'Inter', sans-serif; font-weight:600; font-size:0.85rem;
+    border-radius:8px; padding:0.6rem 1rem; cursor:pointer; border:1px solid transparent;
+  }
+  .btn-primary{ background: var(--brass); color:#241a03; }
+  .btn-primary:hover{ background: var(--brass-2); }
+  .btn-primary[disabled]{ background: var(--surface-3); color: var(--muted); cursor:not-allowed; }
+  .btn-ghost{ background: transparent; border-color: var(--line); color: var(--chalk); }
+  .btn-ghost:hover{ border-color: var(--muted); }
+  .btn-danger{ background: transparent; border-color: color-mix(in srgb, var(--oxblood) 60%, var(--line)); color: #e0938c; }
+  .btn-danger:hover{ background: color-mix(in srgb, var(--oxblood) 18%, transparent); }
+  .btn[disabled]{ opacity:0.4; cursor:not-allowed; }
+
+  .team-row, .round-row{
+    display:flex; align-items:center; gap:0.6rem;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding: 0.5rem 0.6rem;
+  }
+  .team-row + .team-row, .round-row + .round-row{ margin-top:0.5rem; }
+  .team-row .row-icon{ width:1.6rem; height:1.6rem; flex:0 0 auto; }
+  .team-row .row-icon svg{ width:100%; height:100%; display:block; }
+  .team-row input.name-input, .round-row input.name-input{ background: transparent; border:none; padding:0.2rem; }
+  .team-row input.name-input:focus, .round-row input.name-input:focus{ outline:none; border-bottom:1px solid var(--brass); }
+
+  .round-row{ cursor:pointer; }
+  .round-row.active{ border-color: var(--brass); }
+  .round-row .radio{
+    width:1rem; height:1rem; border-radius:50%; border:2px solid var(--muted); flex:0 0 auto;
+  }
+  .round-row.active .radio{ border-color: var(--brass); background: var(--brass); }
+
+  .empty-list{ font-size:0.82rem; color: var(--muted); padding:0.5rem 0.1rem; }
+
+  .grid-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  table.scoregrid{ border-collapse:collapse; width:100%; font-family:'Inter', sans-serif; font-size:0.82rem; }
+  table.scoregrid th, table.scoregrid td{
+    padding: 0.45rem 0.5rem; text-align:center; border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  table.scoregrid th{ color: var(--muted); font-weight:600; text-align:left; position:sticky; left:0; background: var(--surface-2); }
+  table.scoregrid td:first-child{ text-align:left; position:sticky; left:0; background: var(--surface); color: var(--chalk); font-weight:600; }
+  table.scoregrid input[type="number"]{ width:3.6rem; text-align:center; padding:0.3rem; }
+  table.scoregrid td.total{ font-weight:700; color: var(--brass-2); }
+
+  .drawer-foot{
+    flex:0 0 auto; padding: 0.9rem 1.25rem; border-top:1px solid var(--line);
+    display:flex; justify-content:space-between; gap:0.5rem;
+  }
+
+  /* ---------- Sign-up / Questions screens ---------- */
+  .signup-overlay, .questions-overlay{
+    position:fixed; inset:0; z-index:35;
+    background: var(--bg);
+    opacity:0; pointer-events:none;
+    transform: translateY(12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    overflow-y:auto;
+  }
+  .signup-overlay.open, .questions-overlay.open{ opacity:1; pointer-events:auto; transform:none; }
+  .signup-inner{
+    max-width: 760px; margin: 0 auto;
+    padding: clamp(1.5rem,4vh,3rem) clamp(1rem,4vw,2rem) 4rem;
+  }
+  .signup-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.75rem; }
+  .signup-head h2{
+    margin:0; font-family:'Permanent Marker', cursive; color:var(--brass-2);
+    font-size: clamp(1.6rem, 4vw, 2.4rem); text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  }
+  .signup-head p{ margin:0.4rem 0 0; color:var(--muted); font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px; font-size:0.8rem; }
+
+  .signup-label{ font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px; font-size:0.8rem; color:var(--amber); margin: 1.75rem 0 0.75rem; }
+  .signup-label:first-of-type{ margin-top:0; }
+  #signupName{ width:100%; font-size:1.1rem; padding:0.85rem 1rem; }
+
+  .logo-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 0.75rem;
+  }
+  .logo-card{
+    background: var(--surface); border:2px solid var(--line); border-radius:14px;
+    padding: 0.85rem 0.5rem 0.7rem; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:0.5rem;
+    transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  }
+  .logo-card:hover{ transform: translateY(-2px); border-color: var(--muted); }
+  .logo-card.selected{ border-color: var(--brass); background: var(--surface-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass) 40%, transparent); }
+  .logo-card svg{ width:52px; height:52px; }
+  .logo-card span{ font-family:'Inter', sans-serif; font-size:0.72rem; color:var(--muted); text-align:center; line-height:1.2; }
+  .logo-card.selected span{ color: var(--chalk); }
+
+  .signup-add-row{ display:flex; align-items:center; gap:0.75rem; margin-top:1.5rem; }
+  .signup-add-row .btn{ font-size:0.95rem; padding:0.75rem 1.4rem; }
+  .signup-hint{ font-size:0.8rem; color:var(--muted); }
+
+  .roster-list{ display:flex; flex-wrap:wrap; gap:0.6rem; margin-top:0.85rem; }
+  .roster-chip{
+    display:flex; align-items:center; gap:0.5rem;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:999px;
+    padding: 0.35rem 0.5rem 0.35rem 0.4rem;
+  }
+  .roster-chip .row-icon{ width:1.5rem; height:1.5rem; }
+  .roster-chip .row-icon svg{ width:100%; height:100%; display:block; }
+  .roster-chip span{ font-family:'Inter', sans-serif; font-size:0.85rem; font-weight:600; }
+  .roster-chip button{ background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:0.9rem; line-height:1; padding:0.1rem; }
+  .roster-chip button:hover{ color:#e0938c; }
+
+  /* ---------- Questions screen ---------- */
+  .questions-inner{
+    max-width: 880px; margin: 0 auto;
+    padding: clamp(1.5rem,4vh,3rem) clamp(1rem,4vw,2rem) 4rem;
+  }
+  .round-tabs{ display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+  .round-tab{
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:0.8rem;
+    background: var(--surface); border:1px solid var(--line); color:var(--muted);
+    padding:0.55rem 1rem; border-radius:999px; cursor:pointer;
+  }
+  .round-tab.active{ background: var(--surface-2); border-color: var(--brass); color: var(--chalk); }
+  .round-tab .count{ opacity:0.7; margin-left:0.3rem; }
+
+  .present-actions{ display:flex; gap:0.6rem; flex-wrap:wrap; margin: 0 0 1.75rem; }
+
+  .qform{
+    background: var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding:1rem; display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem;
+  }
+  .qform textarea{
+    background: var(--surface); border:1px solid var(--line); color: var(--chalk);
+    border-radius:8px; padding:0.65rem 0.75rem; font-family:'Inter', sans-serif; font-size:0.95rem;
+    min-height:5rem; resize:vertical; width:100%;
+  }
+  .qform textarea:focus, .qform input:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+  .qform label{ display:block; font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:0.72rem; color:var(--muted); margin-bottom:0.35rem; }
+  .qform .img-row{ display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; }
+  .qform .img-preview{
+    width:72px; height:72px; border-radius:8px; overflow:hidden; flex:0 0 auto;
+    background:var(--surface); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:1.3rem;
+  }
+  .qform .img-preview img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .qform .form-actions{ display:flex; gap:0.5rem; justify-content:flex-end; }
+  .file-btn{
+    display:inline-flex; align-items:center; gap:0.4rem;
+    background: var(--surface); border:1px solid var(--line); color:var(--chalk);
+    border-radius:8px; padding:0.5rem 0.85rem; cursor:pointer; font-size:0.82rem; font-family:'Inter',sans-serif;
+  }
+  .file-btn:hover{ border-color: var(--muted); }
+  .file-btn input{ display:none; }
+
+  .qcard{
+    display:flex; gap:0.85rem; align-items:flex-start;
+    background: var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding: 0.85rem; margin-bottom:0.75rem;
+  }
+  .qcard .qthumb{
+    flex:0 0 auto; width:64px; height:64px; border-radius:8px; overflow:hidden;
+    background: var(--surface-2); display:flex; align-items:center; justify-content:center;
+    color: var(--muted); font-size:1.4rem;
+  }
+  .qcard .qthumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .qcard .qbody{ flex:1 1 auto; min-width:0; }
+  .qcard .qnum{ font-family:'Oswald', sans-serif; color:var(--amber); font-size:0.72rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.25rem; }
+  .qcard .qtext{ color:var(--chalk); font-size:0.95rem; line-height:1.4; overflow-wrap:anywhere; }
+  .qcard .qanswer{ color:var(--muted); font-size:0.82rem; margin-top:0.3rem; overflow-wrap:anywhere; }
+  .qcard .qactions{ flex:0 0 auto; display:flex; flex-wrap:wrap; gap:0.3rem; justify-content:flex-end; max-width:6rem; }
+  .qcard .qactions .icon-btn{ width:1.9rem; height:1.9rem; font-size:0.8rem; }
+
+  /* ---------- Present mode ---------- */
+  .present-overlay{
+    position:fixed; inset:0; z-index:50;
+    background: var(--bg);
+    opacity:0; pointer-events:none;
+    transition: opacity 0.3s ease, background-color 0.5s ease;
+    display:flex; flex-direction:column;
+  }
+  .present-overlay.open{ opacity:1; pointer-events:auto; }
+  .present-top{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding: clamp(0.75rem,2vh,1.25rem) clamp(1rem,3vw,2rem);
+    background: rgba(0,0,0,0.6);
+  }
+  .present-top .present-progress, .present-top .icon-btn{ color: var(--chalk); }
+  .present-top .icon-btn{ border-color: rgba(241,232,214,0.35); }
+  .present-progress{
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:clamp(0.7rem,1.6vh,0.95rem); color:var(--muted);
+  }
+  .present-progress b{ color:var(--brass); }
+  .present-stage{
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: clamp(1rem,3vh,2rem); padding: 0 clamp(1.5rem,6vw,4rem) clamp(1rem,3vh,2rem); text-align:center;
+    overflow-y:auto;
+  }
+  .present-stage img{
+    max-width:min(100%, 900px); max-height:44vh; object-fit:contain; border-radius:14px;
+    box-shadow: var(--shadow); background: var(--surface-2);
+  }
+  .present-question{
+    font-family:'Oswald', sans-serif; font-weight:600; color:var(--chalk);
+    font-size: clamp(1.5rem, 4.4vh, 2.8rem); line-height:1.3; max-width:1000px; text-wrap:balance;
+  }
+  .present-answer{
+    font-family:'Permanent Marker', cursive; color:var(--brass-2);
+    font-size: clamp(1.2rem, 3.2vh, 2rem); opacity:0; transform:translateY(6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .present-answer.shown{ opacity:1; transform:none; }
+  .present-bottom{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:0.75rem;
+    padding: clamp(0.75rem,2vh,1.5rem);
+    background: rgba(0,0,0,0.6);
+  }
+  .present-nav-btn{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--chalk);
+    border-radius:999px; padding:0.65rem 1.3rem; font-family:'Inter',sans-serif; font-weight:600; cursor:pointer; font-size:0.9rem;
+  }
+  .present-nav-btn:hover{ border-color: var(--muted); }
+  .present-nav-btn[disabled]{ opacity:0.35; cursor:not-allowed; }
+  .present-empty{ color:var(--muted); font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; }
+
+  /* ---------- Winner overlay ---------- */
+  .winner-overlay{
+    position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(212,165,69,0.18), rgba(0,0,0,0.86) 65%);
+    opacity:0; pointer-events:none; transition: opacity 0.5s ease;
+    text-align:center; padding:2rem;
+  }
+  .winner-overlay.open{ opacity:1; pointer-events:auto; }
+  .winner-overlay .eyebrow{ font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:4px; color: var(--amber); font-size: clamp(0.9rem,2vh,1.2rem); }
+  .winner-overlay .wname{ font-family:'Permanent Marker', cursive; color: var(--brass-2); font-size: clamp(2.5rem, 9vh, 6rem); margin: 0.4rem 0; text-shadow: 0 4px 0 rgba(0,0,0,0.4); }
+  .winner-overlay .wscore{ font-family:'Oswald', sans-serif; font-weight:700; color: var(--chalk); font-size: clamp(1.5rem,4vh,2.5rem); }
+  .winner-overlay button{ margin-top:2rem; }
+  #confetti-canvas{ position:fixed; inset:0; z-index:41; pointer-events:none; }
+
+  @media (prefers-reduced-motion: reduce){
+    .row, .drawer, .backdrop, .winner-overlay, .signup-overlay, .questions-overlay, .present-overlay, .present-answer, .logo-card{ transition:none !important; }
+  }
+
+  @media (max-width: 640px){
+    .drawer{ width:100vw; border-left:none; }
+    .brand-text p{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="board-header">
+    <div class="brand">
+      <svg class="pint-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 10h20l-1.6 26.5A4 4 0 0 1 26.4 40H17.6a4 4 0 0 1-4-3.5L12 10Z" fill="#e0b354" stroke="#7a5a1c" stroke-width="1.5"/>
+        <path d="M32 15h3a4 4 0 0 1 4 4.5l-1 8A4 4 0 0 1 34 31h-2.4" stroke="#e0b354" stroke-width="2" stroke-linecap="round"/>
+        <path d="M13 17h18" stroke="#7a5a1c" stroke-width="1.2" opacity="0.6"/>
+        <path d="M14.5 10c-1-3 1-5 3-4-0.5-2.5 2-4.5 4-2.7C22.2 1 25 2 24.6 4.6c2-1.6 4.6 0.4 3.4 3" stroke="#f1e8d6" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="brand-text">
+        <h1>Steve's Pub Trivia</h1>
+        <p id="subhead">40th Birthday Bash</p>
+      </div>
+    </div>
+    <div class="round-pill" id="roundPill">Round <b>1</b> of 1</div>
+  </header>
+
+  <main class="board" id="board" aria-live="polite"></main>
+
+  <div class="corner-toggles">
+    <button class="corner-btn primary" id="signupToggle" title="Add teams &amp; pick a logo">👥 Add Teams</button>
+    <button class="corner-btn" id="questionsToggle" title="Write trivia questions">📋 Questions</button>
+    <button class="corner-btn" id="manageToggle" title="Manage rounds &amp; scores (M)">⚙ Manage</button>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- ---------- Sign-up screen ---------- -->
+<section class="signup-overlay" id="signupScreen" aria-label="Add your team">
+  <div class="signup-inner">
+    <div class="signup-head">
+      <div>
+        <h2>Add Your Team</h2>
+        <p>Steve's Pub Trivia &middot; 40th Birthday Bash</p>
+      </div>
+      <button class="btn btn-ghost" id="signupClose">← Back to Board</button>
+    </div>
+
+    <div class="signup-label">Team Name</div>
+    <input type="text" id="signupName" class="name-input" placeholder="e.g. The Trivia Newton Johns" maxlength="30">
+
+    <div class="signup-label">Pick a Philly Logo</div>
+    <div class="logo-grid" id="logoGrid"></div>
+
+    <div class="signup-add-row">
+      <button class="btn btn-primary" id="signupAddBtn" disabled>Add to Board</button>
+      <span class="signup-hint" id="signupHint">Choose a name and a logo to continue.</span>
+    </div>
+
+    <div class="signup-label" id="rosterLabel" hidden>Teams In Tonight</div>
+    <div class="roster-list" id="rosterList"></div>
+  </div>
+</section>
+
+<!-- ---------- Questions screen ---------- -->
+<section class="questions-overlay" id="questionsScreen" aria-label="Write trivia questions">
+  <div class="questions-inner">
+    <div class="signup-head">
+      <div>
+        <h2>Round Questions</h2>
+        <p>Steve's Pub Trivia &middot; 40th Birthday Bash</p>
+      </div>
+      <button class="btn btn-ghost" id="questionsClose">← Back to Board</button>
+    </div>
+
+    <div class="round-tabs" id="questionRoundTabs"></div>
+
+    <div class="present-actions">
+      <button class="btn btn-primary" id="presentRoundBtn">▶ Present This Round</button>
+      <button class="btn btn-ghost" id="presentAllBtn">▶ Present Full Game</button>
+    </div>
+
+    <div id="questionFormWrap"></div>
+
+    <div id="questionList"></div>
+  </div>
+</section>
+
+<aside class="drawer" id="drawer" aria-label="Manage trivia game">
+  <div class="drawer-head">
+    <h2>Host Controls</h2>
+    <button class="icon-btn" id="closeDrawer" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="note" id="sampleNote">Loaded with example teams, scores &amp; questions so you can see it in action — edit or remove them below, or hit "Reset Game" to start fresh for the party.</div>
+
+    <section class="panel">
+      <h3>Party details</h3>
+      <div class="field-row">
+        <input type="text" id="subtitleInput" class="name-input" placeholder="Subtitle shown on the board">
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Teams</h3>
+      <div id="teamList"></div>
+      <div class="field-row" style="margin-top:0.75rem;">
+        <button class="btn btn-primary" id="openSignupFromDrawer">+ Add Teams</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Rounds</h3>
+      <div id="roundList"></div>
+      <div class="field-row" style="margin-top:0.75rem;">
+        <button class="btn btn-ghost" id="addRoundBtn">+ Add Round</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Trivia Questions</h3>
+      <div class="field-row">
+        <button class="btn btn-primary" id="openQuestionsFromDrawer">📋 Write Questions</button>
+        <button class="btn btn-ghost" id="presentAllFromDrawer">▶ Present Full Game</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Score Grid</h3>
+      <div class="grid-wrap">
+        <table class="scoregrid" id="scoreGrid"></table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>End Game</h3>
+      <button class="btn btn-primary" id="revealBtn">🏆 Reveal Winner</button>
+    </section>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-danger" id="resetBtn">Reset Game</button>
+  </div>
+</aside>
+
+<div class="winner-overlay" id="winnerOverlay">
+  <div>
+    <div class="eyebrow">Your Champion Is</div>
+    <div class="wname" id="winnerName">—</div>
+    <div class="wscore" id="winnerScore">0 points</div>
+    <button class="btn btn-ghost" id="closeWinner">Back to board</button>
+  </div>
+</div>
+<canvas id="confetti-canvas"></canvas>
+
+<div class="present-overlay" id="presentOverlay" aria-label="Present trivia questions">
+  <div class="present-top">
+    <div class="present-progress" id="presentProgress">Round 1 &middot; Question <b>1</b> of 1</div>
+    <button class="icon-btn" id="presentClose" aria-label="Exit presentation" title="Exit (Esc)">✕</button>
+  </div>
+  <div class="present-stage" id="presentStage"></div>
+  <div class="present-bottom">
+    <button class="present-nav-btn" id="presentPrev">← Prev</button>
+    <button class="present-nav-btn" id="presentRevealBtn">Reveal Answer</button>
+    <button class="present-nav-btn" id="presentNext">Next →</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "steves-pub-trivia-v1";
+  var ACCENTS = [
+    { key:"brass", val: getComputedColor("--brass") },
+    { key:"amber", val: getComputedColor("--amber") },
+    { key:"felt", val: getComputedColor("--felt") },
+    { key:"oxblood", val: getComputedColor("--oxblood") },
+    { key:"denim", val: getComputedColor("--denim") },
+    { key:"plum", val: getComputedColor("--plum") }
+  ];
+
+  // Original, non-trademarked Philly-flavor icons (not sports-league logos).
+  var ICONS = {
+    bell: {
+      label: "Liberty Bell",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M24 8c2-2 4-3 8-3s6 1 8 3c3 3 5 9 5 16 0 8 3 12 6 17 1 1.6 0 3-1.8 3H14.8C13 44 12 42.6 13 41c3-5 6-9 6-17 0-7 2-13 5-16Z" fill="#d9a544"/>' +
+        '<path d="M13.6 44h36.8c0.6 1.4 1.4 2.7 2.3 4H11.3c0.9-1.3 1.7-2.6 2.3-4Z" fill="#a8792a"/>' +
+        '<ellipse cx="32" cy="50" rx="10.5" ry="3.4" fill="#8a6a2a"/>' +
+        '<circle cx="32" cy="50" r="2.4" fill="#3a2c10"/>' +
+        '<path d="M27 4h10v5H27z" fill="#8a6a2a"/>' +
+        '<path d="M27 21 24 32l6-2-4 11 12-15-7 2 5-9Z" fill="none" stroke="#2c231a" stroke-width="1.6" stroke-linejoin="round"/>' +
+        '</svg>'
+    },
+    love: {
+      label: "LOVE Statue",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="6" y="8" width="24" height="24" rx="4" fill="#a24238"/>' +
+        '<rect x="34" y="8" width="24" height="24" rx="4" fill="#a24238" transform="rotate(-14 46 20)"/>' +
+        '<rect x="6" y="34" width="24" height="24" rx="4" fill="#3f6a8a"/>' +
+        '<rect x="34" y="34" width="24" height="24" rx="4" fill="#3f6a8a"/>' +
+        '<text x="18" y="27" font-family="Oswald, sans-serif" font-weight="700" font-size="18" fill="#f1e8d6" text-anchor="middle">L</text>' +
+        '<text x="46" y="24" font-family="Oswald, sans-serif" font-weight="700" font-size="18" fill="#f1e8d6" text-anchor="middle" transform="rotate(-14 46 20)">O</text>' +
+        '<text x="18" y="53" font-family="Oswald, sans-serif" font-weight="700" font-size="18" fill="#f1e8d6" text-anchor="middle">V</text>' +
+        '<text x="46" y="53" font-family="Oswald, sans-serif" font-weight="700" font-size="18" fill="#f1e8d6" text-anchor="middle">E</text>' +
+        '</svg>'
+    },
+    steps: {
+      label: "Rocky Steps",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<circle cx="32" cy="24" r="15" fill="#e08a3c"/>' +
+        '<rect x="0" y="46" width="64" height="8" fill="#8a8074"/>' +
+        '<rect x="6" y="40" width="52" height="8" fill="#96897a"/>' +
+        '<rect x="12" y="34" width="40" height="8" fill="#8a8074"/>' +
+        '<rect x="18" y="28" width="28" height="8" fill="#96897a"/>' +
+        '<circle cx="32" cy="18" r="4.2" fill="#1c1712"/>' +
+        '<path d="M32 22v6M32 24l-6-7M32 24l6-7" stroke="#1c1712" stroke-width="3" stroke-linecap="round"/>' +
+        '</svg>'
+    },
+    cheesesteak: {
+      label: "Cheesesteak",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="6" y="26" width="52" height="20" rx="10" fill="#dcae6e"/>' +
+        '<rect x="6" y="26" width="52" height="8" rx="4" fill="#c99752"/>' +
+        '<path d="M14 30c4 3 6-3 10 0s6-3 10 0 6-3 10 0 6-3 10 0" stroke="#6b3f22" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+        '<circle cx="20" cy="40" r="2.6" fill="#4f6b3a"/>' +
+        '<circle cx="30" cy="41" r="2.6" fill="#e8dcb0"/>' +
+        '<circle cx="40" cy="40" r="2.6" fill="#4f6b3a"/>' +
+        '<circle cx="48" cy="41" r="2.6" fill="#e8dcb0"/>' +
+        '</svg>'
+    },
+    pretzel: {
+      label: "Soft Pretzel",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M20 46c-9 0-13-7-11-14 2-6 8-9 13-6 2 1 3 3 3 5-3-3-8-2-9 2s2 7 6 7c7 0 9-6 9-10V22c0-2 2-3 3-1l8 12c1 1.4 0 3-1.6 3-1 0-1.7-0.5-2.2-1.3L32 24" fill="none" stroke="#b9812f" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M20 46c-9 0-13-7-11-14 2-6 8-9 13-6 2 1 3 3 3 5-3-3-8-2-9 2s2 7 6 7c7 0 9-6 9-10V22c0-2 2-3 3-1l8 12c1 1.4 0 3-1.6 3-1 0-1.7-0.5-2.2-1.3L32 24" fill="none" stroke="#8a5f1f" stroke-width="1.4"/>' +
+        '<circle cx="18" cy="32" r="1.3" fill="#f1e8d6"/><circle cx="24" cy="40" r="1.3" fill="#f1e8d6"/>' +
+        '<circle cx="34" cy="30" r="1.3" fill="#f1e8d6"/><circle cx="40" cy="38" r="1.3" fill="#f1e8d6"/>' +
+        '<circle cx="30" cy="22" r="1.3" fill="#f1e8d6"/>' +
+        '</svg>'
+    },
+    cityhall: {
+      label: "City Hall",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="24" y="20" width="16" height="34" fill="#8a8074"/>' +
+        '<rect x="16" y="46" width="32" height="8" fill="#6b6255"/>' +
+        '<circle cx="32" cy="28" r="6.5" fill="#f1e8d6" stroke="#5c5346" stroke-width="1.4"/>' +
+        '<path d="M32 24v4l3 2" stroke="#2c231a" stroke-width="1.4" stroke-linecap="round"/>' +
+        '<path d="M26 20l6-9 6 9Z" fill="#5c5346"/>' +
+        '<rect x="30.5" y="6" width="3" height="6" fill="#3a3227"/>' +
+        '<circle cx="32" cy="5" r="2" fill="#1c1712"/>' +
+        '</svg>'
+    },
+    transit: {
+      label: "City Trolley",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="6" y="18" width="52" height="26" rx="8" fill="#3f6a8a"/>' +
+        '<rect x="6" y="36" width="52" height="8" fill="#e0b354"/>' +
+        '<rect x="12" y="24" width="10" height="8" rx="1.5" fill="#f1e8d6"/>' +
+        '<rect x="27" y="24" width="10" height="8" rx="1.5" fill="#f1e8d6"/>' +
+        '<rect x="42" y="24" width="10" height="8" rx="1.5" fill="#f1e8d6"/>' +
+        '<circle cx="18" cy="48" r="4.5" fill="#2c231a"/>' +
+        '<circle cx="46" cy="48" r="4.5" fill="#2c231a"/>' +
+        '<circle cx="18" cy="48" r="1.8" fill="#8a8074"/>' +
+        '<circle cx="46" cy="48" r="1.8" fill="#8a8074"/>' +
+        '</svg>'
+    },
+    waterice: {
+      label: "Water Ice",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M18 26h28l-4 26a5 5 0 0 1-5 4.4H27a5 5 0 0 1-5-4.4Z" fill="#f1e8d6"/>' +
+        '<path d="M16 26c0-6 7-10 16-10s16 4 16 10c0 3-7 5-16 5s-16-2-16-5Z" fill="#a24238"/>' +
+        '<path d="M20 22c1.5-3 6-5 12-5s10.5 2 12 5c-2 2-7 3-12 3s-10-1-12-3Z" fill="#e0b354"/>' +
+        '<rect x="30.5" y="8" width="3" height="12" rx="1.5" fill="#f1e8d6" transform="rotate(10 32 14)"/>' +
+        '</svg>'
+    },
+    rowhouses: {
+      label: "Row Houses",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="4" y="30" width="16" height="24" fill="#a24238"/>' +
+        '<rect x="20" y="20" width="16" height="34" fill="#3f6a8a"/>' +
+        '<rect x="36" y="26" width="16" height="28" fill="#7a4f8a"/>' +
+        '<rect x="4" y="30" width="16" height="4" fill="#7c2f28"/>' +
+        '<rect x="20" y="20" width="16" height="4" fill="#2f5470"/>' +
+        '<rect x="36" y="26" width="16" height="4" fill="#5f3a6b"/>' +
+        '<rect x="9" y="44" width="6" height="10" fill="#2c231a"/>' +
+        '<rect x="25" y="44" width="6" height="10" fill="#2c231a"/>' +
+        '<rect x="41" y="44" width="6" height="10" fill="#2c231a"/>' +
+        '<rect x="24" y="26" width="4" height="4" fill="#e0b354"/>' +
+        '<rect x="40" y="32" width="4" height="4" fill="#e0b354"/>' +
+        '</svg>'
+    },
+    kite: {
+      label: "Franklin's Kite",
+      svg: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M32 6 46 26 32 50 18 26Z" fill="#3f6a8a"/>' +
+        '<path d="M18 26h28M32 6v44" stroke="#2c4f66" stroke-width="1.4"/>' +
+        '<path d="M32 50c-2 4-2 6 2 8-3 1-2 5 1 5" fill="none" stroke="#f1e8d6" stroke-width="1.6" stroke-linecap="round"/>' +
+        '<path d="M35 58l4 6-6-2Z" fill="#e08a3c"/>' +
+        '<path d="M31 51c-1 3-4 4-3 8" stroke="#8a6a2a" stroke-width="1.6" fill="none"/>' +
+        '<rect x="26" y="57" width="6" height="4" rx="1" fill="#d4a545"/>' +
+        '<circle cx="24" cy="59" r="1.6" fill="#d4a545"/>' +
+        '</svg>'
+    }
+  };
+  var ICON_KEYS = ["bell","love","steps","cheesesteak","pretzel","cityhall","transit","waterice","rowhouses","kite"];
+
+  function getComputedColor(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#d4a545";
+  }
+
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+
+  function iconSvg(key){
+    return (ICONS[key] || ICONS.bell).svg;
+  }
+
+  function nextAccent(existingTeams){
+    var used = {};
+    existingTeams.forEach(function(t){ used[t.accent] = (used[t.accent]||0)+1; });
+    var best = ACCENTS[0].key, bestCount = Infinity;
+    ACCENTS.forEach(function(a){
+      var c = used[a.key] || 0;
+      if(c < bestCount){ bestCount = c; best = a.key; }
+    });
+    return best;
+  }
+
+  function defaultState(){
+    var r1 = uid(), r2 = uid(), r3 = uid(), r4 = uid();
+    var t1 = uid(), t2 = uid(), t3 = uid(), t4 = uid();
+    var scores = {};
+    scores[t1] = {}; scores[t2] = {}; scores[t3] = {}; scores[t4] = {};
+    scores[t1][r1]=8; scores[t1][r2]=6;
+    scores[t2][r1]=7; scores[t2][r2]=9;
+    scores[t3][r1]=5; scores[t3][r2]=5;
+    scores[t4][r1]=6; scores[t4][r2]=4;
+    var sampleLoveImage = "";
+    try{ sampleLoveImage = "data:image/svg+xml;base64," + btoa(ICONS.love.svg); }catch(e){}
+    return {
+      subtitle: "40th Birthday Bash",
+      teams: [
+        { id:t1, name:"Quizzy McQuizface", icon:"bell", accent:"brass" },
+        { id:t2, name:"The Nacho Average Team", icon:"cheesesteak", accent:"amber" },
+        { id:t3, name:"Sudden Death Trivia", icon:"steps", accent:"denim" },
+        { id:t4, name:"Two Pints In", icon:"love", accent:"oxblood" }
+      ],
+      rounds: [
+        { id:r1, label:"Round 1: General Knowledge" },
+        { id:r2, label:"Round 2: 40 Years of Steve" },
+        { id:r3, label:"Round 3: Music & Movies" },
+        { id:r4, label:"Round 4: Wildcard" }
+      ],
+      currentRoundId: r3,
+      questionsCurrentRoundId: r1,
+      scores: scores,
+      questions: [
+        { id:uid(), roundId:r1, text:"What is the capital of Australia?", answer:"Canberra", image:"", order:0 },
+        { id:uid(), roundId:r1, text:"In what decade did the first Apple Macintosh computer go on sale?", answer:"The 1980s (1984)", image:"", order:1 },
+        { id:uid(), roundId:r2, text:"Picture round: name this Philadelphia landmark.", answer:"LOVE Park / the LOVE sculpture", image: sampleLoveImage, order:0 }
+      ],
+      isSample: true
+    };
+  }
+
+  function loadState(){
+    var loaded = null;
+    try{
+      var hot = (window.claude && window.claude.hot && window.claude.hot.data) || null;
+      if(hot && hot.teams){ loaded = hot; }
+    }catch(e){}
+    if(!loaded){
+      try{
+        var raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){ loaded = JSON.parse(raw); }
+      }catch(e){}
+    }
+    if(!loaded){ return defaultState(); }
+    if(!loaded.questions) loaded.questions = [];
+    if(!loaded.questionsCurrentRoundId && loaded.rounds && loaded.rounds[0]) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
+    return loaded;
+  }
+
+  function saveState(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  var state = loadState();
+
+  try{
+    if(window.claude && window.claude.hot && window.claude.hot.snapshot){
+      window.claude.hot.snapshot(function(){ return state; });
+    }
+  }catch(e){}
+
+  function accentVal(key){
+    for(var i=0;i<ACCENTS.length;i++){ if(ACCENTS[i].key===key) return ACCENTS[i].val; }
+    return ACCENTS[0].val;
+  }
+
+  function teamTotal(team){
+    var s = state.scores[team.id] || {};
+    var total = 0;
+    for(var k in s){ if(Object.prototype.hasOwnProperty.call(s,k)){ total += Number(s[k])||0; } }
+    return total;
+  }
+
+  function ranked(){
+    return state.teams.slice().sort(function(a,b){ return teamTotal(b) - teamTotal(a); });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ---------- Board rendering ----------
+  var boardEl = document.getElementById("board");
+  var roundPillEl = document.getElementById("roundPill");
+  var subheadEl = document.getElementById("subhead");
+
+  function renderBoard(){
+    subheadEl.textContent = state.subtitle || "40th Birthday Bash";
+
+    var idx = state.rounds.findIndex(function(r){ return r.id === state.currentRoundId; });
+    if(idx === -1) idx = 0;
+    var currentRound = state.rounds[idx];
+    roundPillEl.innerHTML = "Round <b>" + (idx+1) + "</b> of " + state.rounds.length +
+      (currentRound ? " &middot; " + escapeHtml(currentRound.label.replace(/^Round\s*\d+:?\s*/i,"")) : "");
+
+    var teams = ranked();
+    boardEl.innerHTML = "";
+
+    if(teams.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "empty-board";
+      empty.textContent = "No teams yet — tap \"Add Teams\" to build tonight's roster.";
+      boardEl.appendChild(empty);
+      return;
+    }
+
+    var maxScore = Math.max(1, teamTotal(teams[0]));
+
+    teams.forEach(function(team, i){
+      var total = teamTotal(team);
+      var row = document.createElement("div");
+      row.className = "row" + (i===0 && total>0 ? " lead" : "");
+      row.style.setProperty("--accent", accentVal(team.accent));
+      row.style.setProperty("--pct", Math.max(0,(total/maxScore*100)) + "%");
+
+      var fill = document.createElement("div");
+      fill.className = "fill";
+      row.appendChild(fill);
+
+      var rank = document.createElement("div");
+      rank.className = "rank" + (i===0?" r1":i===1?" r2":i===2?" r3":"");
+      rank.textContent = String(i+1);
+      row.appendChild(rank);
+
+      var idWrap = document.createElement("div");
+      idWrap.className = "team-id";
+      idWrap.innerHTML =
+        '<span class="team-mascot">' + iconSvg(team.icon) + '</span>' +
+        '<span class="team-dot" style="background:' + accentVal(team.accent) + '"></span>' +
+        '<span class="team-name">' + escapeHtml(team.name||"Unnamed Team") + '</span>';
+      row.appendChild(idWrap);
+
+      var score = document.createElement("div");
+      score.className = "team-score";
+      score.textContent = total;
+      row.appendChild(score);
+
+      boardEl.appendChild(row);
+    });
+  }
+
+  // ---------- Drawer ----------
+  var drawer = document.getElementById("drawer");
+  var backdrop = document.getElementById("backdrop");
+  var manageToggle = document.getElementById("manageToggle");
+  var closeDrawerBtn = document.getElementById("closeDrawer");
+
+  function openDrawer(){ drawer.classList.add("open"); backdrop.classList.add("open"); renderDrawer(); }
+  function closeDrawer(){ drawer.classList.remove("open"); backdrop.classList.remove("open"); }
+
+  manageToggle.addEventListener("click", openDrawer);
+  closeDrawerBtn.addEventListener("click", closeDrawer);
+  backdrop.addEventListener("click", function(){ closeDrawer(); closeSignup(); closeQuestions(); });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){
+      if(presentOverlay.classList.contains("open")){ closePresent(); }
+      else { closeDrawer(); closeSignup(); closeQuestions(); }
+      return;
+    }
+    if(presentOverlay.classList.contains("open") && !isTyping(e.target)){
+      if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); presentGoNext(); return; }
+      if(e.key === "ArrowLeft"){ presentGoPrev(); return; }
+      if(e.key === "a" || e.key === "A" || e.key === "Enter"){ presentToggleAnswer(); return; }
+    }
+    if((e.key === "m" || e.key === "M") && !isTyping(e.target)){ drawer.classList.contains("open") ? closeDrawer() : openDrawer(); }
+  });
+  function isTyping(el){ return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"); }
+
+  var subtitleInput = document.getElementById("subtitleInput");
+  subtitleInput.addEventListener("input", function(){
+    state.subtitle = subtitleInput.value;
+    persistAndRender();
+  });
+
+  var sampleNote = document.getElementById("sampleNote");
+
+  function addTeam(name, iconKey){
+    var id = uid();
+    state.teams.push({ id:id, name:name, icon:iconKey, accent: nextAccent(state.teams) });
+    state.scores[id] = {};
+    state.isSample = false;
+    persistAndRender();
+  }
+
+  var teamList = document.getElementById("teamList");
+  function renderTeamList(){
+    teamList.innerHTML = "";
+    if(state.teams.length === 0){
+      var e = document.createElement("div");
+      e.className = "empty-list";
+      e.textContent = "No teams yet.";
+      teamList.appendChild(e);
+      return;
+    }
+    state.teams.forEach(function(team){
+      var row = document.createElement("div");
+      row.className = "team-row";
+
+      var iconSpan = document.createElement("span");
+      iconSpan.className = "row-icon";
+      iconSpan.innerHTML = iconSvg(team.icon);
+      row.appendChild(iconSpan);
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.className = "name-input";
+      nameInput.value = team.name;
+      nameInput.maxLength = 30;
+      nameInput.addEventListener("input", function(){
+        team.name = nameInput.value;
+        state.isSample = false;
+        persistAndRender();
+      });
+      row.appendChild(nameInput);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "icon-btn";
+      delBtn.textContent = "✕";
+      delBtn.title = "Remove team";
+      delBtn.addEventListener("click", function(){
+        state.teams = state.teams.filter(function(t){ return t.id !== team.id; });
+        delete state.scores[team.id];
+        state.isSample = false;
+        persistAndRender();
+        renderDrawer();
+        renderSignupRoster();
+      });
+      row.appendChild(delBtn);
+
+      teamList.appendChild(row);
+    });
+  }
+
+  var roundList = document.getElementById("roundList");
+  var addRoundBtn = document.getElementById("addRoundBtn");
+
+  function renderRoundList(){
+    roundList.innerHTML = "";
+    state.rounds.forEach(function(round, i){
+      var row = document.createElement("div");
+      row.className = "round-row" + (round.id === state.currentRoundId ? " active" : "");
+
+      var radio = document.createElement("span");
+      radio.className = "radio";
+      row.appendChild(radio);
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.className = "name-input";
+      nameInput.value = round.label;
+      nameInput.style.flex = "1";
+      nameInput.addEventListener("click", function(e){ e.stopPropagation(); });
+      nameInput.addEventListener("input", function(){
+        round.label = nameInput.value;
+        persistAndRender();
+        renderQuestionsScreen();
+      });
+      row.appendChild(nameInput);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "icon-btn";
+      delBtn.textContent = "✕";
+      delBtn.title = "Remove round";
+      delBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(state.rounds.length <= 1) return;
+        state.rounds = state.rounds.filter(function(r){ return r.id !== round.id; });
+        state.questions = state.questions.filter(function(q){ return q.roundId !== round.id; });
+        if(state.currentRoundId === round.id){ state.currentRoundId = state.rounds[0].id; }
+        if(state.questionsCurrentRoundId === round.id){ state.questionsCurrentRoundId = state.rounds[0].id; }
+        persistAndRender();
+        renderDrawer();
+        renderQuestionsScreen();
+      });
+      row.appendChild(delBtn);
+
+      row.addEventListener("click", function(){
+        state.currentRoundId = round.id;
+        persistAndRender();
+        renderDrawer();
+      });
+
+      roundList.appendChild(row);
+    });
+  }
+
+  addRoundBtn.addEventListener("click", function(){
+    var id = uid();
+    state.rounds.push({ id:id, label:"Round " + (state.rounds.length+1) });
+    state.currentRoundId = id;
+    persistAndRender();
+    renderDrawer();
+    renderQuestionsScreen();
+  });
+
+  var scoreGrid = document.getElementById("scoreGrid");
+  function renderScoreGrid(){
+    scoreGrid.innerHTML = "";
+    if(state.teams.length === 0 || state.rounds.length === 0){
+      scoreGrid.innerHTML = "<tr><td style='padding:0.75rem; color:var(--muted);'>Add teams and rounds to start scoring.</td></tr>";
+      return;
+    }
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    headRow.appendChild(document.createElement("th"));
+    state.rounds.forEach(function(round, i){
+      var th = document.createElement("th");
+      th.textContent = "R" + (i+1);
+      th.title = round.label;
+      headRow.appendChild(th);
+    });
+    var totalTh = document.createElement("th");
+    totalTh.textContent = "Total";
+    headRow.appendChild(totalTh);
+    thead.appendChild(headRow);
+    scoreGrid.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    state.teams.forEach(function(team){
+      var tr = document.createElement("tr");
+      var nameTd = document.createElement("td");
+      nameTd.textContent = team.name;
+      tr.appendChild(nameTd);
+
+      state.rounds.forEach(function(round){
+        var td = document.createElement("td");
+        var input = document.createElement("input");
+        input.type = "number";
+        input.id = "score-" + team.id + "-" + round.id;
+        input.value = (state.scores[team.id] && state.scores[team.id][round.id] != null) ? state.scores[team.id][round.id] : "";
+        input.placeholder = "0";
+        input.addEventListener("input", function(){
+          if(!state.scores[team.id]) state.scores[team.id] = {};
+          state.scores[team.id][round.id] = input.value === "" ? 0 : Number(input.value);
+          state.isSample = false;
+          renderBoard();
+          saveState();
+          totalTd.textContent = teamTotal(team);
+        });
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      var totalTd = document.createElement("td");
+      totalTd.className = "total";
+      totalTd.textContent = teamTotal(team);
+      tr.appendChild(totalTd);
+
+      tbody.appendChild(tr);
+    });
+    scoreGrid.appendChild(tbody);
+  }
+
+  function renderDrawer(){
+    subtitleInput.value = state.subtitle || "";
+    sampleNote.hidden = !state.isSample;
+    renderTeamList();
+    renderRoundList();
+    renderScoreGrid();
+  }
+
+  // ---------- Sign-up screen ----------
+  var signupScreen = document.getElementById("signupScreen");
+  var signupToggle = document.getElementById("signupToggle");
+  var signupClose = document.getElementById("signupClose");
+  var openSignupFromDrawer = document.getElementById("openSignupFromDrawer");
+  var signupName = document.getElementById("signupName");
+  var logoGrid = document.getElementById("logoGrid");
+  var signupAddBtn = document.getElementById("signupAddBtn");
+  var signupHint = document.getElementById("signupHint");
+  var rosterList = document.getElementById("rosterList");
+  var rosterLabel = document.getElementById("rosterLabel");
+  var selectedIcon = null;
+
+  ICON_KEYS.forEach(function(key){
+    var card = document.createElement("div");
+    card.className = "logo-card";
+    card.setAttribute("role","button");
+    card.setAttribute("tabindex","0");
+    card.dataset.icon = key;
+    card.innerHTML = iconSvg(key) + "<span>" + ICONS[key].label + "</span>";
+    card.addEventListener("click", function(){ selectIcon(key); });
+    card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); selectIcon(key); } });
+    logoGrid.appendChild(card);
+  });
+
+  function selectIcon(key){
+    selectedIcon = key;
+    Array.prototype.forEach.call(logoGrid.children, function(c){ c.classList.toggle("selected", c.dataset.icon === key); });
+    updateSignupState();
+  }
+
+  function updateSignupState(){
+    var ready = signupName.value.trim().length > 0 && selectedIcon;
+    signupAddBtn.disabled = !ready;
+    signupHint.textContent = ready ? "Ready — add " + signupName.value.trim() + " to the board." : "Choose a name and a logo to continue.";
+  }
+  signupName.addEventListener("input", updateSignupState);
+  signupName.addEventListener("keydown", function(e){ if(e.key === "Enter" && !signupAddBtn.disabled){ submitSignup(); } });
+
+  function submitSignup(){
+    var name = signupName.value.trim();
+    if(!name || !selectedIcon) return;
+    addTeam(name, selectedIcon);
+    signupName.value = "";
+    selectedIcon = null;
+    Array.prototype.forEach.call(logoGrid.children, function(c){ c.classList.remove("selected"); });
+    updateSignupState();
+    renderSignupRoster();
+    renderDrawer();
+    signupName.focus();
+  }
+  signupAddBtn.addEventListener("click", submitSignup);
+
+  function renderSignupRoster(){
+    rosterList.innerHTML = "";
+    rosterLabel.hidden = state.teams.length === 0;
+    state.teams.forEach(function(team){
+      var chip = document.createElement("div");
+      chip.className = "roster-chip";
+      var iconSpan = document.createElement("span");
+      iconSpan.className = "row-icon";
+      iconSpan.innerHTML = iconSvg(team.icon);
+      chip.appendChild(iconSpan);
+      var nameSpan = document.createElement("span");
+      nameSpan.textContent = team.name;
+      chip.appendChild(nameSpan);
+      var delBtn = document.createElement("button");
+      delBtn.textContent = "✕";
+      delBtn.title = "Remove team";
+      delBtn.addEventListener("click", function(){
+        state.teams = state.teams.filter(function(t){ return t.id !== team.id; });
+        delete state.scores[team.id];
+        state.isSample = false;
+        persistAndRender();
+        renderSignupRoster();
+        renderDrawer();
+      });
+      chip.appendChild(delBtn);
+      rosterList.appendChild(chip);
+    });
+  }
+
+  function openSignup(){
+    closeDrawer();
+    signupScreen.classList.add("open");
+    renderSignupRoster();
+    updateSignupState();
+    signupName.focus();
+  }
+  function closeSignup(){ signupScreen.classList.remove("open"); }
+
+  signupToggle.addEventListener("click", openSignup);
+  signupClose.addEventListener("click", closeSignup);
+  openSignupFromDrawer.addEventListener("click", openSignup);
+
+  // ---------- Questions screen ----------
+  var questionsScreen = document.getElementById("questionsScreen");
+  var questionsToggle = document.getElementById("questionsToggle");
+  var questionsClose = document.getElementById("questionsClose");
+  var openQuestionsFromDrawer = document.getElementById("openQuestionsFromDrawer");
+  var questionRoundTabs = document.getElementById("questionRoundTabs");
+  var questionFormWrap = document.getElementById("questionFormWrap");
+  var questionList = document.getElementById("questionList");
+  var presentRoundBtn = document.getElementById("presentRoundBtn");
+  var presentAllBtn = document.getElementById("presentAllBtn");
+  var presentAllFromDrawer = document.getElementById("presentAllFromDrawer");
+
+  var editingQuestionId = null;
+  var questionDraft = { text:"", answer:"", image:"" };
+
+  function questionsForRound(roundId){
+    return state.questions.filter(function(q){ return q.roundId === roundId; })
+      .sort(function(a,b){ return (a.order||0) - (b.order||0); });
+  }
+  function allQuestionsOrdered(){
+    var out = [];
+    state.rounds.forEach(function(round){ out = out.concat(questionsForRound(round.id)); });
+    return out;
+  }
+
+  function resizeImageFile(file, maxDim, cb){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        var w = Math.max(1, Math.round(img.width*scale));
+        var h = Math.max(1, Math.round(img.height*scale));
+        var canvasEl = document.createElement("canvas");
+        canvasEl.width = w; canvasEl.height = h;
+        var cx = canvasEl.getContext("2d");
+        cx.drawImage(img, 0, 0, w, h);
+        var dataUrl;
+        try{ dataUrl = canvasEl.toDataURL("image/jpeg", 0.72); }catch(err){ dataUrl = e.target.result; }
+        cb(dataUrl);
+      };
+      img.onerror = function(){ cb(null); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ cb(null); };
+    reader.readAsDataURL(file);
+  }
+
+  function cancelQuestionForm(){
+    editingQuestionId = null;
+    questionDraft = { text:"", answer:"", image:"" };
+  }
+
+  function renderQuestionRoundTabs(){
+    questionRoundTabs.innerHTML = "";
+    state.rounds.forEach(function(round){
+      var tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "round-tab" + (round.id === state.questionsCurrentRoundId ? " active" : "");
+      tab.innerHTML = escapeHtml(round.label) + '<span class="count">(' + questionsForRound(round.id).length + ')</span>';
+      tab.addEventListener("click", function(){
+        state.questionsCurrentRoundId = round.id;
+        cancelQuestionForm();
+        renderQuestionsScreen();
+      });
+      questionRoundTabs.appendChild(tab);
+    });
+  }
+
+  function renderImagePreview(){
+    var preview = document.getElementById("qImagePreview");
+    if(!preview) return;
+    preview.innerHTML = questionDraft.image ? ('<img src="' + questionDraft.image + '" alt="">') : "🖼";
+    var removeBtn = document.getElementById("qImageRemoveBtn");
+    if(removeBtn) removeBtn.hidden = !questionDraft.image;
+  }
+
+  function renderQuestionForm(){
+    questionFormWrap.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "qform";
+
+    var textLabel = document.createElement("label");
+    textLabel.textContent = "Question";
+    wrap.appendChild(textLabel);
+    var textArea = document.createElement("textarea");
+    textArea.value = questionDraft.text;
+    textArea.placeholder = "Type the question exactly as you'll read it aloud…";
+    textArea.addEventListener("input", function(){ questionDraft.text = textArea.value; });
+    wrap.appendChild(textArea);
+
+    var answerLabel = document.createElement("label");
+    answerLabel.textContent = "Answer (optional — shown when you hit Reveal in Present mode)";
+    wrap.appendChild(answerLabel);
+    var answerInput = document.createElement("input");
+    answerInput.type = "text";
+    answerInput.style.width = "100%";
+    answerInput.style.flex = "0 0 auto";
+    answerInput.value = questionDraft.answer;
+    answerInput.placeholder = "e.g. Canberra";
+    answerInput.addEventListener("input", function(){ questionDraft.answer = answerInput.value; });
+    wrap.appendChild(answerInput);
+
+    var imgRow = document.createElement("div");
+    imgRow.className = "img-row";
+
+    var preview = document.createElement("div");
+    preview.className = "img-preview";
+    preview.id = "qImagePreview";
+    imgRow.appendChild(preview);
+
+    var fileLabel = document.createElement("label");
+    fileLabel.className = "file-btn";
+    fileLabel.innerHTML = "🖼 " + (questionDraft.image ? "Change Picture" : "Add Picture");
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.addEventListener("change", function(){
+      var file = fileInput.files && fileInput.files[0];
+      if(!file) return;
+      resizeImageFile(file, 1280, function(dataUrl){
+        if(dataUrl){ questionDraft.image = dataUrl; }
+        renderImagePreview();
+        fileLabel.innerHTML = "🖼 " + (questionDraft.image ? "Change Picture" : "Add Picture");
+        removeImgBtn.hidden = !questionDraft.image;
+      });
+    });
+    fileLabel.appendChild(fileInput);
+    imgRow.appendChild(fileLabel);
+
+    var removeImgBtn = document.createElement("button");
+    removeImgBtn.type = "button";
+    removeImgBtn.id = "qImageRemoveBtn";
+    removeImgBtn.className = "btn btn-ghost";
+    removeImgBtn.textContent = "Remove Picture";
+    removeImgBtn.hidden = !questionDraft.image;
+    removeImgBtn.addEventListener("click", function(){
+      questionDraft.image = "";
+      renderImagePreview();
+      fileLabel.innerHTML = "🖼 Add Picture";
+      removeImgBtn.hidden = true;
+    });
+    imgRow.appendChild(removeImgBtn);
+
+    wrap.appendChild(imgRow);
+
+    var actions = document.createElement("div");
+    actions.className = "form-actions";
+    var cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn btn-ghost";
+    cancelBtn.textContent = editingQuestionId ? "Cancel Edit" : "Clear";
+    cancelBtn.addEventListener("click", function(){ cancelQuestionForm(); renderQuestionsScreen(); });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn btn-primary";
+    saveBtn.textContent = editingQuestionId ? "Save Changes" : "Add Question";
+    saveBtn.addEventListener("click", saveQuestionDraft);
+    actions.appendChild(saveBtn);
+
+    wrap.appendChild(actions);
+    questionFormWrap.appendChild(wrap);
+    renderImagePreview();
+  }
+
+  function saveQuestionDraft(){
+    var text = questionDraft.text.trim();
+    if(!text) return;
+    if(editingQuestionId){
+      var existing = state.questions.filter(function(q){ return q.id === editingQuestionId; })[0];
+      if(existing){
+        existing.text = text;
+        existing.answer = questionDraft.answer.trim();
+        existing.image = questionDraft.image || "";
+      }
+    } else {
+      var order = questionsForRound(state.questionsCurrentRoundId).length;
+      state.questions.push({
+        id: uid(), roundId: state.questionsCurrentRoundId,
+        text: text, answer: questionDraft.answer.trim(), image: questionDraft.image || "", order: order
+      });
+    }
+    state.isSample = false;
+    cancelQuestionForm();
+    saveState();
+    renderQuestionsScreen();
+  }
+
+  function moveQuestion(id, dir){
+    var list = questionsForRound(state.questionsCurrentRoundId);
+    var idx = -1;
+    list.forEach(function(q,i){ if(q.id===id) idx = i; });
+    var swapIdx = idx + dir;
+    if(idx === -1 || swapIdx < 0 || swapIdx >= list.length) return;
+    var a = list[idx], b = list[swapIdx];
+    var tmp = a.order; a.order = b.order; b.order = tmp;
+    saveState();
+    renderQuestionsScreen();
+  }
+
+  function renderQuestionList(){
+    questionList.innerHTML = "";
+    var list = questionsForRound(state.questionsCurrentRoundId);
+    if(list.length === 0){
+      var e = document.createElement("div");
+      e.className = "empty-list";
+      e.textContent = "No questions yet for this round — add one above.";
+      questionList.appendChild(e);
+      return;
+    }
+    list.forEach(function(q, i){
+      var card = document.createElement("div");
+      card.className = "qcard";
+
+      var thumb = document.createElement("div");
+      thumb.className = "qthumb";
+      thumb.innerHTML = q.image ? ('<img src="' + q.image + '" alt="">') : "📝";
+      card.appendChild(thumb);
+
+      var body = document.createElement("div");
+      body.className = "qbody";
+      var num = document.createElement("div");
+      num.className = "qnum";
+      num.textContent = "Question " + (i+1);
+      body.appendChild(num);
+      var txt = document.createElement("div");
+      txt.className = "qtext";
+      txt.textContent = q.text;
+      body.appendChild(txt);
+      if(q.answer){
+        var ans = document.createElement("div");
+        ans.className = "qanswer";
+        ans.textContent = "Answer: " + q.answer;
+        body.appendChild(ans);
+      }
+      card.appendChild(body);
+
+      var actions = document.createElement("div");
+      actions.className = "qactions";
+
+      var upBtn = document.createElement("button");
+      upBtn.className = "icon-btn"; upBtn.textContent = "↑"; upBtn.title = "Move up";
+      upBtn.disabled = i === 0;
+      upBtn.addEventListener("click", function(){ moveQuestion(q.id, -1); });
+      actions.appendChild(upBtn);
+
+      var downBtn = document.createElement("button");
+      downBtn.className = "icon-btn"; downBtn.textContent = "↓"; downBtn.title = "Move down";
+      downBtn.disabled = i === list.length - 1;
+      downBtn.addEventListener("click", function(){ moveQuestion(q.id, 1); });
+      actions.appendChild(downBtn);
+
+      var editBtn = document.createElement("button");
+      editBtn.className = "icon-btn"; editBtn.textContent = "✎"; editBtn.title = "Edit";
+      editBtn.addEventListener("click", function(){
+        editingQuestionId = q.id;
+        questionDraft = { text:q.text, answer:q.answer||"", image:q.image||"" };
+        renderQuestionsScreen();
+      });
+      actions.appendChild(editBtn);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "icon-btn"; delBtn.textContent = "✕"; delBtn.title = "Delete";
+      delBtn.addEventListener("click", function(){
+        state.questions = state.questions.filter(function(x){ return x.id !== q.id; });
+        if(editingQuestionId === q.id){ cancelQuestionForm(); }
+        state.isSample = false;
+        saveState();
+        renderQuestionsScreen();
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+      questionList.appendChild(card);
+    });
+  }
+
+  function renderQuestionsScreen(){
+    if(!state.questionsCurrentRoundId || !state.rounds.some(function(r){ return r.id === state.questionsCurrentRoundId; })){
+      state.questionsCurrentRoundId = state.rounds[0] ? state.rounds[0].id : null;
+    }
+    renderQuestionRoundTabs();
+    renderQuestionForm();
+    renderQuestionList();
+    presentRoundBtn.disabled = questionsForRound(state.questionsCurrentRoundId).length === 0;
+    presentAllBtn.disabled = state.questions.length === 0;
+  }
+
+  function openQuestionsScreen(){
+    closeDrawer(); closeSignup();
+    questionsScreen.classList.add("open");
+    cancelQuestionForm();
+    renderQuestionsScreen();
+  }
+  function closeQuestions(){ questionsScreen.classList.remove("open"); }
+
+  questionsToggle.addEventListener("click", openQuestionsScreen);
+  questionsClose.addEventListener("click", closeQuestions);
+  openQuestionsFromDrawer.addEventListener("click", openQuestionsScreen);
+  presentAllFromDrawer.addEventListener("click", function(){ openPresent(allQuestionsOrdered()); });
+  presentRoundBtn.addEventListener("click", function(){ openPresent(questionsForRound(state.questionsCurrentRoundId)); });
+  presentAllBtn.addEventListener("click", function(){ openPresent(allQuestionsOrdered()); });
+
+  // ---------- Present mode ----------
+  var presentOverlay = document.getElementById("presentOverlay");
+  var presentProgress = document.getElementById("presentProgress");
+  var presentStage = document.getElementById("presentStage");
+  var presentPrev = document.getElementById("presentPrev");
+  var presentNext = document.getElementById("presentNext");
+  var presentRevealBtn = document.getElementById("presentRevealBtn");
+  var presentClose = document.getElementById("presentClose");
+
+  var presentQueue = [];
+  var presentIndex = 0;
+  var presentAnswerShown = false;
+
+  function openPresent(queue){
+    if(!queue || queue.length === 0){
+      alert("Add at least one question before presenting.");
+      return;
+    }
+    closeDrawer(); closeSignup();
+    presentQueue = queue;
+    presentIndex = 0;
+    presentAnswerShown = false;
+    presentOverlay.classList.add("open");
+    renderPresentSlide();
+  }
+  function closePresent(){ presentOverlay.classList.remove("open"); }
+
+  function presentGoNext(){
+    if(presentIndex < presentQueue.length - 1){ presentIndex++; presentAnswerShown = false; renderPresentSlide(); }
+  }
+  function presentGoPrev(){
+    if(presentIndex > 0){ presentIndex--; presentAnswerShown = false; renderPresentSlide(); }
+  }
+  function presentToggleAnswer(){
+    var q = presentQueue[presentIndex];
+    if(!q || !q.answer) return;
+    presentAnswerShown = !presentAnswerShown;
+    renderPresentSlide();
+  }
+
+  var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
+
+  function renderPresentSlide(){
+    var q = presentQueue[presentIndex];
+    if(!q) return;
+    presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[presentIndex % 2];
+    var round = state.rounds.filter(function(r){ return r.id === q.roundId; })[0] || { label:"" };
+    var sameRound = questionsForRound(q.roundId);
+    var posInRound = -1;
+    sameRound.forEach(function(x,i){ if(x.id===q.id) posInRound = i; });
+
+    presentProgress.innerHTML = escapeHtml(round.label) + " &middot; Question <b>" + (posInRound+1) + "</b> of " + sameRound.length;
+
+    presentStage.innerHTML = "";
+    if(q.image){
+      var img = document.createElement("img");
+      img.src = q.image;
+      img.alt = "";
+      presentStage.appendChild(img);
+    }
+    var qEl = document.createElement("div");
+    qEl.className = "present-question";
+    qEl.textContent = q.text;
+    presentStage.appendChild(qEl);
+
+    var aEl = document.createElement("div");
+    aEl.className = "present-answer" + (presentAnswerShown ? " shown" : "");
+    aEl.textContent = q.answer ? ("Answer: " + q.answer) : "";
+    presentStage.appendChild(aEl);
+
+    presentPrev.disabled = presentIndex === 0;
+    presentNext.disabled = presentIndex === presentQueue.length - 1;
+    presentRevealBtn.style.visibility = q.answer ? "visible" : "hidden";
+    presentRevealBtn.textContent = presentAnswerShown ? "Hide Answer" : "Reveal Answer";
+  }
+
+  presentPrev.addEventListener("click", presentGoPrev);
+  presentNext.addEventListener("click", presentGoNext);
+  presentRevealBtn.addEventListener("click", presentToggleAnswer);
+  presentClose.addEventListener("click", closePresent);
+
+  // ---------- Reset ----------
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    if(confirm("Reset all teams, rounds, scores and questions? This can't be undone.")){
+      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, scores:{}, questions:[], isSample:false };
+      state.currentRoundId = state.rounds[0].id;
+      state.questionsCurrentRoundId = state.rounds[0].id;
+      persistAndRender();
+      renderDrawer();
+      renderSignupRoster();
+      renderQuestionsScreen();
+    }
+  });
+
+  // ---------- Winner reveal ----------
+  var winnerOverlay = document.getElementById("winnerOverlay");
+  var winnerName = document.getElementById("winnerName");
+  var winnerScore = document.getElementById("winnerScore");
+  document.getElementById("revealBtn").addEventListener("click", function(){
+    var teams = ranked();
+    if(teams.length === 0) return;
+    var champ = teams[0];
+    winnerName.textContent = champ.name;
+    winnerScore.textContent = teamTotal(champ) + " points";
+    closeDrawer();
+    winnerOverlay.classList.add("open");
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(!reduce) fireConfetti();
+  });
+  document.getElementById("closeWinner").addEventListener("click", function(){
+    winnerOverlay.classList.remove("open");
+  });
+
+  // ---------- Confetti ----------
+  var canvas = document.getElementById("confetti-canvas");
+  var ctx = canvas.getContext("2d");
+  var confettiParticles = [];
+  var confettiRAF = null;
+  function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  function fireConfetti(){
+    var colors = [accentVal("brass"), accentVal("amber"), accentVal("felt"), accentVal("oxblood"), accentVal("denim"), accentVal("plum")];
+    confettiParticles = [];
+    for(var i=0;i<160;i++){
+      confettiParticles.push({
+        x: Math.random()*canvas.width,
+        y: -20 - Math.random()*canvas.height*0.5,
+        w: 6+Math.random()*6,
+        h: 8+Math.random()*10,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        vy: 2+Math.random()*3,
+        vx: -1.5+Math.random()*3,
+        rot: Math.random()*360,
+        vr: -6+Math.random()*12
+      });
+    }
+    var start = Date.now();
+    if(confettiRAF) cancelAnimationFrame(confettiRAF);
+    (function loop(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      var elapsed = Date.now()-start;
+      confettiParticles.forEach(function(p){
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save();
+        ctx.translate(p.x,p.y);
+        ctx.rotate(p.rot*Math.PI/180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+        ctx.restore();
+      });
+      if(elapsed < 4500 && winnerOverlay.classList.contains("open")){
+        confettiRAF = requestAnimationFrame(loop);
+      } else {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
+    })();
+  }
+
+  // ---------- Boot ----------
+  function persistAndRender(){ saveState(); renderBoard(); }
+
+  function boot(){
+    renderBoard();
+  }
+
+  try{
+    if(window.claude && window.claude.hot && window.claude.hot.ready){
+      window.claude.hot.ready(function(data){
+        if(data && data.teams){ state = data; }
+        boot();
+      });
+    } else {
+      boot();
+    }
+  }catch(e){ boot(); }
+
+})();
+</script>
+</body>
+</html>
