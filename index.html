@@ -1006,11 +1006,23 @@
     };
   }
 
+  function toArray(maybe){
+    if(Array.isArray(maybe)) return maybe;
+    if(maybe && typeof maybe === "object"){
+      // Firebase collapses a JSON array back into a plain {key: value} object
+      // if it ever sees a non-numeric key at that path - coerce it back.
+      return Object.keys(maybe).sort().map(function(k){ return maybe[k]; });
+    }
+    return [];
+  }
+
   function normalizeState(loaded){
-    if(!loaded || !loaded.rounds || !loaded.rounds.length){ return defaultState(); }
-    if(!loaded.teams) loaded.teams = [];
+    if(!loaded){ return defaultState(); }
+    loaded.rounds = toArray(loaded.rounds);
+    if(!loaded.rounds.length){ return defaultState(); }
+    loaded.teams = toArray(loaded.teams);
+    loaded.questions = toArray(loaded.questions);
     if(!loaded.scores) loaded.scores = {};
-    if(!loaded.questions) loaded.questions = [];
     if(!loaded.answers) loaded.answers = {};
     if(!loaded.questionsCurrentRoundId) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
     if(loaded.currentQuestionId === undefined) loaded.currentQuestionId = null;
@@ -1167,12 +1179,33 @@
 
   var sampleNote = document.getElementById("sampleNote");
 
+  function syncNewTeam(team){
+    if(fbEnabled && gameRef){
+      try{
+        // Use a transaction (not a scoped child write) so the shared /teams
+        // list stays a real JSON array even when multiple phones join at once -
+        // writing to teams/<randomId> directly would turn it into a keyed
+        // object and break every array method the app uses on state.teams.
+        gameRef.child("teams").transaction(function(current){
+          var arr = Array.isArray(current) ? current.slice() : [];
+          arr.push(team);
+          return arr;
+        });
+        gameRef.child("scores/"+team.id).set({});
+        gameRef.child("isSample").set(false);
+      }catch(e){}
+    }
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
   function addTeam(name, iconKey){
     var id = uid();
-    state.teams.push({ id:id, name:name, icon:iconKey, accent: nextAccent(state.teams) });
+    var team = { id:id, name:name, icon:iconKey, accent: nextAccent(state.teams) };
+    state.teams.push(team);
     state.scores[id] = {};
     state.isSample = false;
-    persistAndRender();
+    syncNewTeam(team);
+    renderBoard();
   }
 
   var teamList = document.getElementById("teamList");
@@ -2042,14 +2075,7 @@
     if(!state.scores) state.scores = {};
     state.scores[id] = {};
     try{ localStorage.setItem("myTeamId", id); }catch(e){}
-    if(fbEnabled && gameRef){
-      try{
-        gameRef.child("teams/"+id).set(team);
-        gameRef.child("scores/"+id).set({});
-      }catch(e){}
-    } else {
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
-    }
+    syncNewTeam(team);
     renderPlayScreen();
   }
 
