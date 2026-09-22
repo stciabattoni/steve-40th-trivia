@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --bg:#12100d;
@@ -490,6 +493,91 @@
   .present-nav-btn[disabled]{ opacity:0.35; cursor:not-allowed; }
   .present-empty{ color:var(--muted); font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; }
 
+  .present-answers{
+    width:100%; max-width:640px; display:flex; flex-direction:column; gap:0.5rem;
+    background: rgba(0,0,0,0.35); border-radius:14px; padding:0.85rem;
+  }
+  .present-answers-head{
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:0.78rem; color: var(--chalk); opacity:0.85; text-align:left;
+  }
+  .pa-row{
+    display:flex; align-items:center; gap:0.6rem;
+    background: rgba(0,0,0,0.3); border-radius:10px; padding:0.5rem 0.65rem;
+  }
+  .pa-row .row-icon{ width:1.5rem; height:1.5rem; flex:0 0 auto; }
+  .pa-row .row-icon svg{ width:100%; height:100%; display:block; }
+  .pa-name{ font-family:'Inter', sans-serif; font-weight:700; font-size:0.85rem; color:var(--chalk); flex:0 0 auto; max-width:9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pa-text{ flex:1 1 auto; text-align:left; font-family:'Inter', sans-serif; font-size:0.88rem; color:var(--chalk); overflow-wrap:anywhere; }
+  .pa-score{ flex:0 0 auto; font-family:'Oswald', sans-serif; font-weight:700; color:var(--brass-2); font-size:0.85rem; min-width:1.6rem; text-align:center; }
+  .pa-btn{
+    flex:0 0 auto; width:2rem; height:2rem; border-radius:8px; border:1px solid rgba(241,232,214,0.35);
+    background: rgba(0,0,0,0.25); color:var(--chalk); cursor:pointer; font-size:0.95rem; font-weight:700;
+  }
+  .pa-btn:hover{ background: rgba(0,0,0,0.45); }
+  .pa-btn.plus:hover{ border-color: #7fbf7f; }
+  .pa-btn.minus:hover{ border-color: #e0938c; }
+
+  /* ---------- QR join overlay ---------- */
+  .qr-overlay{
+    position:fixed; inset:0; z-index:45; display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,0.75);
+    opacity:0; pointer-events:none; transition: opacity 0.25s ease;
+    padding:2rem;
+  }
+  .qr-overlay.open{ opacity:1; pointer-events:auto; }
+  .qr-card{
+    background: var(--chalk); color:#12100d; border-radius:20px; padding:2rem;
+    display:flex; flex-direction:column; align-items:center; gap:1rem; max-width:360px; text-align:center;
+    box-shadow: var(--shadow);
+  }
+  .qr-card h2{ margin:0; font-family:'Permanent Marker', cursive; color:#12100d; font-size:1.5rem; }
+  .qr-card p{ margin:0; font-family:'Inter', sans-serif; font-size:0.85rem; color:#4a3f33; }
+  #qrCanvas{ background:#fff; padding:0.75rem; border-radius:12px; }
+  .qr-url{ font-family:'Inter', sans-serif; font-size:0.78rem; color:#4a3f33; word-break:break-all; }
+
+  /* ---------- Play (phone) screen ---------- */
+  #playScreen{
+    position:fixed; inset:0; z-index:60; background: var(--bg); color:var(--chalk);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: clamp(1.25rem,6vw,2.5rem); text-align:center; gap:1.25rem; overflow-y:auto;
+  }
+  #playScreen[hidden]{ display:none; }
+  #app[hidden]{ display:none; }
+  #playScreen .brand-text h1{ font-size: clamp(1.6rem, 8vw, 2.2rem); }
+  #playScreen .play-card{
+    width:100%; max-width:420px; display:flex; flex-direction:column; gap:1rem;
+  }
+  #playScreen .signup-label{ text-align:left; margin: 0.75rem 0 0.5rem; }
+  #playScreen .logo-grid{ grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  #playScreen .logo-card svg{ width:40px; height:40px; }
+  #playScreen textarea{
+    background: var(--surface-2); border:1px solid var(--line); color: var(--chalk);
+    border-radius:10px; padding:0.85rem; font-family:'Inter', sans-serif; font-size:1rem;
+    min-height:6rem; width:100%; resize:vertical;
+  }
+  #playScreen textarea:focus{ outline:2px solid var(--brass); }
+  .play-status{
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    color: var(--muted); font-size:0.85rem;
+  }
+  .play-team-chip{
+    display:flex; align-items:center; gap:0.6rem; justify-content:center;
+    background: var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:0.5rem 1rem;
+  }
+  .play-team-chip .row-icon{ width:1.6rem; height:1.6rem; }
+  .play-team-chip .row-icon svg{ width:100%; height:100%; display:block; }
+  .play-score{ font-family:'Oswald', sans-serif; color:var(--brass-2); font-weight:700; font-size:1.8rem; }
+  .play-question{
+    font-family:'Oswald', sans-serif; font-weight:600; font-size: clamp(1.2rem, 5vw, 1.6rem);
+    color: var(--chalk); line-height:1.35;
+  }
+  .play-locked{
+    background: var(--surface-2); border:1px dashed var(--line); border-radius:12px;
+    padding:0.85rem; font-family:'Inter', sans-serif; font-size:0.95rem; color:var(--chalk); text-align:left;
+  }
+  .play-locked .lbl{ color:var(--muted); font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:0.72rem; display:block; margin-bottom:0.3rem; }
+
   /* ---------- Winner overlay ---------- */
   .winner-overlay{
     position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
@@ -505,7 +593,7 @@
   #confetti-canvas{ position:fixed; inset:0; z-index:41; pointer-events:none; }
 
   @media (prefers-reduced-motion: reduce){
-    .row, .drawer, .backdrop, .winner-overlay, .signup-overlay, .questions-overlay, .present-overlay, .present-answer, .logo-card{ transition:none !important; }
+    .row, .drawer, .backdrop, .winner-overlay, .signup-overlay, .questions-overlay, .present-overlay, .present-answer, .logo-card, .qr-overlay{ transition:none !important; }
   }
 
   @media (max-width: 640px){
@@ -536,13 +624,37 @@
   <main class="board" id="board" aria-live="polite"></main>
 
   <div class="corner-toggles">
-    <button class="corner-btn primary" id="signupToggle" title="Add teams &amp; pick a logo">👥 Add Teams</button>
+    <button class="corner-btn primary" id="qrToggle" title="Show QR code for teams to join">📱 Join QR</button>
+    <button class="corner-btn" id="signupToggle" title="Add teams &amp; pick a logo">👥 Add Teams</button>
     <button class="corner-btn" id="questionsToggle" title="Write trivia questions">📋 Questions</button>
     <button class="corner-btn" id="manageToggle" title="Manage rounds &amp; scores (M)">⚙ Manage</button>
   </div>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
+
+<!-- ---------- QR join overlay ---------- -->
+<div class="qr-overlay" id="qrOverlay">
+  <div class="qr-card">
+    <h2>Join on Your Phone</h2>
+    <p>Scan this code, pick your team name &amp; logo, and submit answers live from your seat.</p>
+    <div id="qrCanvas"></div>
+    <div class="qr-url" id="qrUrlText"></div>
+    <button class="btn btn-ghost" id="qrClose">Close</button>
+  </div>
+</div>
+
+<!-- ---------- Play (phone) screen ---------- -->
+<section id="playScreen" hidden>
+  <svg class="pint-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:44px;height:44px;">
+    <path d="M12 10h20l-1.6 26.5A4 4 0 0 1 26.4 40H17.6a4 4 0 0 1-4-3.5L12 10Z" fill="#e0b354" stroke="#7a5a1c" stroke-width="1.5"/>
+    <path d="M32 15h3a4 4 0 0 1 4 4.5l-1 8A4 4 0 0 1 34 31h-2.4" stroke="#e0b354" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <div class="brand-text">
+    <h1 style="font-family:'Permanent Marker',cursive;color:var(--brass-2);">Steve's Pub Trivia</h1>
+  </div>
+  <div class="play-card" id="playCard"></div>
+</section>
 
 <!-- ---------- Sign-up screen ---------- -->
 <section class="signup-overlay" id="signupScreen" aria-label="Add your team">
@@ -679,6 +791,26 @@
   "use strict";
 
   var STORAGE_KEY = "steves-pub-trivia-v1";
+  var IS_PLAY_MODE = /(^|[?&])play=1(&|$)/.test(location.search);
+
+  var firebaseConfig = {
+    apiKey: "AIzaSyAXtZakEVOJn1AFXR2Ei12_uu6tVup-TLE",
+    authDomain: "steve-s-40th-birthday-trivia.firebaseapp.com",
+    databaseURL: "https://steve-s-40th-birthday-trivia-default-rtdb.firebaseio.com",
+    projectId: "steve-s-40th-birthday-trivia",
+    storageBucket: "steve-s-40th-birthday-trivia.firebasestorage.app",
+    messagingSenderId: "18447368794",
+    appId: "1:18447368794:web:d5472c118eb1672455ce63"
+  };
+  var fbEnabled = false;
+  var gameRef = null;
+  try{
+    if(window.firebase){
+      firebase.initializeApp(firebaseConfig);
+      gameRef = firebase.database().ref("game");
+      fbEnabled = true;
+    }
+  }catch(e){ fbEnabled = false; gameRef = null; }
   var ACCENTS = [
     { key:"brass", val: getComputedColor("--brass") },
     { key:"amber", val: getComputedColor("--amber") },
@@ -862,14 +994,29 @@
       ],
       currentRoundId: r3,
       questionsCurrentRoundId: r1,
+      currentQuestionId: null,
       scores: scores,
       questions: [
         { id:uid(), roundId:r1, text:"What is the capital of Australia?", answer:"Canberra", image:"", order:0 },
         { id:uid(), roundId:r1, text:"In what decade did the first Apple Macintosh computer go on sale?", answer:"The 1980s (1984)", image:"", order:1 },
         { id:uid(), roundId:r2, text:"Picture round: name this Philadelphia landmark.", answer:"LOVE Park / the LOVE sculpture", image: sampleLoveImage, order:0 }
       ],
+      answers: {},
       isSample: true
     };
+  }
+
+  function normalizeState(loaded){
+    if(!loaded || !loaded.rounds || !loaded.rounds.length){ return defaultState(); }
+    if(!loaded.teams) loaded.teams = [];
+    if(!loaded.scores) loaded.scores = {};
+    if(!loaded.questions) loaded.questions = [];
+    if(!loaded.answers) loaded.answers = {};
+    if(!loaded.questionsCurrentRoundId) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
+    if(loaded.currentQuestionId === undefined) loaded.currentQuestionId = null;
+    if(loaded.isSample === undefined) loaded.isSample = false;
+    if(!loaded.subtitle) loaded.subtitle = "40th Birthday Bash";
+    return loaded;
   }
 
   function loadState(){
@@ -885,12 +1032,13 @@
       }catch(e){}
     }
     if(!loaded){ return defaultState(); }
-    if(!loaded.questions) loaded.questions = [];
-    if(!loaded.questionsCurrentRoundId && loaded.rounds && loaded.rounds[0]) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
-    return loaded;
+    return normalizeState(loaded);
   }
 
   function saveState(){
+    if(fbEnabled && gameRef){
+      try{ gameRef.set(state); }catch(e){}
+    }
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
 
@@ -1617,19 +1765,42 @@
   var presentIndex = 0;
   var presentAnswerShown = false;
 
+  function pushCurrentQuestion(qid){
+    state.currentQuestionId = qid;
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("currentQuestionId").set(qid || null); }catch(e){}
+    }
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function gradeAnswer(teamId, roundId, delta){
+    if(!state.scores[teamId]) state.scores[teamId] = {};
+    var next = Math.max(0, (state.scores[teamId][roundId] || 0) + delta);
+    state.scores[teamId][roundId] = next;
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("scores/"+teamId+"/"+roundId).set(next); }catch(e){}
+    }
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    renderBoard();
+    renderPresentAnswersPanel();
+  }
+
   function openPresent(queue){
     if(!queue || queue.length === 0){
       alert("Add at least one question before presenting.");
       return;
     }
-    closeDrawer(); closeSignup();
+    closeDrawer(); closeSignup(); closeQuestions();
     presentQueue = queue;
     presentIndex = 0;
     presentAnswerShown = false;
     presentOverlay.classList.add("open");
     renderPresentSlide();
   }
-  function closePresent(){ presentOverlay.classList.remove("open"); }
+  function closePresent(){
+    presentOverlay.classList.remove("open");
+    pushCurrentQuestion(null);
+  }
 
   function presentGoNext(){
     if(presentIndex < presentQueue.length - 1){ presentIndex++; presentAnswerShown = false; renderPresentSlide(); }
@@ -1646,9 +1817,82 @@
 
   var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
 
+  function renderPresentAnswersPanel(){
+    if(!presentOverlay.classList.contains("open")) return;
+    var q = presentQueue[presentIndex];
+    if(!q) return;
+    var panel = document.getElementById("presentAnswersPanel");
+    if(!panel){
+      panel = document.createElement("div");
+      panel.className = "present-answers";
+      panel.id = "presentAnswersPanel";
+      presentStage.appendChild(panel);
+    } else if(panel.parentNode !== presentStage){
+      presentStage.appendChild(panel);
+    }
+    var answersForQ = (state.answers && state.answers[q.id]) || {};
+    var teamIds = Object.keys(answersForQ);
+    panel.innerHTML = "";
+    var head = document.createElement("div");
+    head.className = "present-answers-head";
+    head.textContent = "📱 Phone Answers (" + teamIds.length + ")";
+    panel.appendChild(head);
+    if(teamIds.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "present-answers-head";
+      empty.style.opacity = "0.6";
+      empty.textContent = "No answers submitted yet.";
+      panel.appendChild(empty);
+      return;
+    }
+    teamIds.forEach(function(teamId){
+      var team = (state.teams||[]).filter(function(t){ return t.id===teamId; })[0];
+      if(!team) return;
+      var row = document.createElement("div");
+      row.className = "pa-row";
+
+      var iconSpan = document.createElement("span");
+      iconSpan.className = "row-icon";
+      iconSpan.innerHTML = iconSvg(team.icon);
+      row.appendChild(iconSpan);
+
+      var nameEl = document.createElement("span");
+      nameEl.className = "pa-name";
+      nameEl.textContent = team.name;
+      row.appendChild(nameEl);
+
+      var textEl = document.createElement("span");
+      textEl.className = "pa-text";
+      textEl.textContent = answersForQ[teamId].text;
+      row.appendChild(textEl);
+
+      var minusBtn = document.createElement("button");
+      minusBtn.className = "pa-btn minus";
+      minusBtn.textContent = "−";
+      minusBtn.title = "Remove a point";
+      minusBtn.addEventListener("click", function(){ gradeAnswer(team.id, q.roundId, -1); });
+      row.appendChild(minusBtn);
+
+      var scoreEl = document.createElement("span");
+      scoreEl.className = "pa-score";
+      scoreEl.textContent = (state.scores[team.id] && state.scores[team.id][q.roundId]) || 0;
+      row.appendChild(scoreEl);
+
+      var plusBtn = document.createElement("button");
+      plusBtn.className = "pa-btn plus";
+      plusBtn.textContent = "+";
+      plusBtn.title = "Award a point";
+      plusBtn.addEventListener("click", function(){ gradeAnswer(team.id, q.roundId, 1); });
+      row.appendChild(plusBtn);
+
+      panel.appendChild(row);
+    });
+  }
+
   function renderPresentSlide(){
     var q = presentQueue[presentIndex];
     if(!q) return;
+    pushCurrentQuestion(q.id);
     presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[presentIndex % 2];
     var round = state.rounds.filter(function(r){ return r.id === q.roundId; })[0] || { label:"" };
     var sameRound = questionsForRound(q.roundId);
@@ -1678,6 +1922,8 @@
     presentNext.disabled = presentIndex === presentQueue.length - 1;
     presentRevealBtn.style.visibility = q.answer ? "visible" : "hidden";
     presentRevealBtn.textContent = presentAnswerShown ? "Hide Answer" : "Reveal Answer";
+
+    renderPresentAnswersPanel();
   }
 
   presentPrev.addEventListener("click", presentGoPrev);
@@ -1688,7 +1934,7 @@
   // ---------- Reset ----------
   document.getElementById("resetBtn").addEventListener("click", function(){
     if(confirm("Reset all teams, rounds, scores and questions? This can't be undone.")){
-      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, scores:{}, questions:[], isSample:false };
+      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, isSample:false };
       state.currentRoundId = state.rounds[0].id;
       state.questionsCurrentRoundId = state.rounds[0].id;
       persistAndRender();
@@ -1764,23 +2010,226 @@
     })();
   }
 
+  // ---------- QR join + Play (phone) mode ----------
+  var appEl = document.getElementById("app");
+  var playScreenEl = document.getElementById("playScreen");
+  var playCard = document.getElementById("playCard");
+  var qrOverlay = document.getElementById("qrOverlay");
+  var qrToggle = document.getElementById("qrToggle");
+  var qrCloseBtn = document.getElementById("qrClose");
+  var qrCanvasEl = document.getElementById("qrCanvas");
+  var qrUrlText = document.getElementById("qrUrlText");
+  var joinUrl = location.origin + location.pathname + "?play=1";
+
+  if(!IS_PLAY_MODE){
+    qrUrlText.textContent = joinUrl;
+    try{
+      if(window.QRCode){
+        new QRCode(qrCanvasEl, { text: joinUrl, width:220, height:220, colorDark:"#12100d", colorLight:"#ffffff" });
+      }
+    }catch(e){}
+    qrToggle.addEventListener("click", function(){
+      closeDrawer(); closeSignup(); closeQuestions();
+      qrOverlay.classList.add("open");
+    });
+    qrCloseBtn.addEventListener("click", function(){ qrOverlay.classList.remove("open"); });
+  }
+
+  function playJoinTeam(name, iconKey){
+    var id = uid();
+    var team = { id:id, name:name, icon:iconKey, accent: nextAccent(state.teams||[]) };
+    state.teams = (state.teams||[]).concat([team]);
+    if(!state.scores) state.scores = {};
+    state.scores[id] = {};
+    try{ localStorage.setItem("myTeamId", id); }catch(e){}
+    if(fbEnabled && gameRef){
+      try{
+        gameRef.child("teams/"+id).set(team);
+        gameRef.child("scores/"+id).set({});
+      }catch(e){}
+    } else {
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    }
+    renderPlayScreen();
+  }
+
+  function playSubmitAnswer(questionId, text){
+    var myId = null;
+    try{ myId = localStorage.getItem("myTeamId"); }catch(e){}
+    if(!myId) return;
+    if(!state.answers) state.answers = {};
+    if(!state.answers[questionId]) state.answers[questionId] = {};
+    state.answers[questionId][myId] = { text:text, submittedAt: Date.now() };
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("answers/"+questionId+"/"+myId).set({ text:text, submittedAt: Date.now() }); }catch(e){}
+    } else {
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    }
+    renderPlayScreen();
+  }
+
+  function renderPlayScreen(){
+    if(!IS_PLAY_MODE) return;
+    var myId = null;
+    try{ myId = localStorage.getItem("myTeamId"); }catch(e){}
+    var myTeam = myId ? (state.teams||[]).filter(function(t){ return t.id===myId; })[0] : null;
+
+    playCard.innerHTML = "";
+
+    if(!myTeam){
+      var label = document.createElement("div");
+      label.className = "signup-label";
+      label.textContent = "Team Name";
+      playCard.appendChild(label);
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.id = "playNameInput";
+      nameInput.placeholder = "e.g. The Trivia Newton Johns";
+      nameInput.maxLength = 30;
+      nameInput.style.width = "100%";
+      playCard.appendChild(nameInput);
+
+      var label2 = document.createElement("div");
+      label2.className = "signup-label";
+      label2.textContent = "Pick a Philly Logo";
+      playCard.appendChild(label2);
+
+      var grid = document.createElement("div");
+      grid.className = "logo-grid";
+      var chosen = null;
+      ICON_KEYS.forEach(function(key){
+        var card = document.createElement("div");
+        card.className = "logo-card";
+        card.innerHTML = iconSvg(key) + "<span>" + ICONS[key].label + "</span>";
+        card.addEventListener("click", function(){
+          chosen = key;
+          Array.prototype.forEach.call(grid.children, function(c){ c.classList.remove("selected"); });
+          card.classList.add("selected");
+          joinBtn.disabled = !(nameInput.value.trim() && chosen);
+        });
+        grid.appendChild(card);
+      });
+      playCard.appendChild(grid);
+
+      var joinBtn = document.createElement("button");
+      joinBtn.className = "btn btn-primary";
+      joinBtn.textContent = "Join Game";
+      joinBtn.disabled = true;
+      joinBtn.style.marginTop = "0.5rem";
+      joinBtn.addEventListener("click", function(){
+        var name = nameInput.value.trim();
+        if(!name || !chosen) return;
+        playJoinTeam(name, chosen);
+      });
+      playCard.appendChild(joinBtn);
+
+      nameInput.addEventListener("input", function(){
+        joinBtn.disabled = !(nameInput.value.trim() && chosen);
+      });
+      return;
+    }
+
+    var chip = document.createElement("div");
+    chip.className = "play-team-chip";
+    chip.innerHTML = '<span class="row-icon">'+iconSvg(myTeam.icon)+'</span><span>'+escapeHtml(myTeam.name)+'</span>';
+    playCard.appendChild(chip);
+
+    var scoreEl = document.createElement("div");
+    scoreEl.className = "play-score";
+    scoreEl.textContent = teamTotal(myTeam) + " pts";
+    playCard.appendChild(scoreEl);
+
+    var q = state.currentQuestionId ? (state.questions||[]).filter(function(x){ return x.id===state.currentQuestionId; })[0] : null;
+
+    if(!q){
+      var waiting = document.createElement("div");
+      waiting.className = "play-status";
+      waiting.textContent = "Waiting for the host to start the next question…";
+      playCard.appendChild(waiting);
+      return;
+    }
+
+    var round = (state.rounds||[]).filter(function(r){ return r.id===q.roundId; })[0];
+    var already = state.answers && state.answers[q.id] && state.answers[q.id][myTeam.id];
+
+    var roundLbl = document.createElement("div");
+    roundLbl.className = "play-status";
+    roundLbl.textContent = round ? round.label : "";
+    playCard.appendChild(roundLbl);
+
+    var qEl = document.createElement("div");
+    qEl.className = "play-question";
+    qEl.textContent = q.text;
+    playCard.appendChild(qEl);
+
+    if(q.image){
+      var img = document.createElement("img");
+      img.src = q.image;
+      img.style.maxWidth = "100%";
+      img.style.borderRadius = "12px";
+      playCard.appendChild(img);
+    }
+
+    var textarea = document.createElement("textarea");
+    textarea.id = "playAnswerInput";
+    textarea.placeholder = "Type your answer…";
+    textarea.value = already ? already.text : "";
+    playCard.appendChild(textarea);
+
+    var submitBtn = document.createElement("button");
+    submitBtn.className = "btn btn-primary";
+    submitBtn.textContent = already ? "Update Answer" : "Submit Answer";
+    submitBtn.addEventListener("click", function(){
+      var txt = textarea.value.trim();
+      if(!txt) return;
+      playSubmitAnswer(q.id, txt);
+    });
+    playCard.appendChild(submitBtn);
+
+    if(already){
+      var lockNote = document.createElement("div");
+      lockNote.className = "play-locked";
+      lockNote.innerHTML = '<span class="lbl">Submitted</span>✅ Answer locked in — you can still update it until the host moves on.';
+      playCard.appendChild(lockNote);
+    }
+  }
+
   // ---------- Boot ----------
   function persistAndRender(){ saveState(); renderBoard(); }
 
-  function boot(){
+  function renderAll(){
+    if(IS_PLAY_MODE){ renderPlayScreen(); return; }
     renderBoard();
+    if(drawer.classList.contains("open")){ renderDrawer(); }
+    if(questionsScreen.classList.contains("open")){ renderQuestionsScreen(); }
+    if(signupScreen.classList.contains("open")){ renderSignupRoster(); }
+    if(presentOverlay.classList.contains("open")){ renderPresentAnswersPanel(); }
   }
 
-  try{
-    if(window.claude && window.claude.hot && window.claude.hot.ready){
-      window.claude.hot.ready(function(data){
-        if(data && data.teams){ state = data; }
-        boot();
-      });
-    } else {
-      boot();
-    }
-  }catch(e){ boot(); }
+  if(IS_PLAY_MODE){
+    appEl.hidden = true;
+    playScreenEl.hidden = false;
+  } else {
+    playScreenEl.hidden = true;
+  }
+
+  if(fbEnabled && gameRef){
+    gameRef.on("value", function(snap){
+      var data = snap.val();
+      if(data){
+        state = normalizeState(data);
+      } else {
+        state = defaultState();
+        try{ gameRef.set(state); }catch(e){}
+      }
+      renderAll();
+    }, function(){
+      renderAll();
+    });
+  } else {
+    renderAll();
+  }
 
 })();
 </script>
