@@ -555,16 +555,16 @@
   #qrCanvas{ background:#fff; padding:0.75rem; border-radius:12px; }
   .qr-url{ font-family:'Inter', sans-serif; font-size:0.78rem; color:#4a3f33; word-break:break-all; }
 
-  /* ---------- Play (phone) screen ---------- */
-  #playScreen{
+  /* ---------- Play (phone) / Judge (moderator) screens ---------- */
+  #playScreen, #judgeScreen{
     position:fixed; inset:0; z-index:60; background: var(--bg); color:var(--chalk);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding: clamp(1.25rem,6vw,2.5rem); text-align:center; gap:1.25rem; overflow-y:auto;
   }
-  #playScreen[hidden]{ display:none; }
+  #playScreen[hidden], #judgeScreen[hidden]{ display:none; }
   #app[hidden]{ display:none; }
-  #playScreen .brand-text h1{ font-size: clamp(1.6rem, 8vw, 2.2rem); }
-  #playScreen .play-card{
+  #playScreen .brand-text h1, #judgeScreen .brand-text h1{ font-size: clamp(1.6rem, 8vw, 2.2rem); }
+  #playScreen .play-card, #judgeScreen .play-card{
     width:100%; max-width:420px; display:flex; flex-direction:column; gap:1rem;
   }
   #playScreen .signup-label{ text-align:left; margin: 0.75rem 0 0.5rem; }
@@ -659,6 +659,7 @@
 
   <div class="corner-toggles">
     <button class="corner-btn primary" id="qrToggle" title="Show QR code for teams to join">📱 Join QR</button>
+    <button class="corner-btn" id="judgeQrToggle" title="Show QR code for the moderator's judging screen">⚖️ Judge Screen</button>
     <button class="corner-btn" id="signupToggle" title="Add teams &amp; pick a logo">👥 Add Teams</button>
     <button class="corner-btn" id="questionsToggle" title="Write trivia questions">📋 Questions</button>
     <button class="corner-btn" id="manageToggle" title="Manage rounds &amp; scores (M)">⚙ Manage</button>
@@ -679,6 +680,18 @@
   </div>
 </div>
 
+<!-- ---------- Judge QR overlay ---------- -->
+<div class="qr-overlay" id="judgeQrOverlay">
+  <div class="qr-card">
+    <button class="qr-x" id="judgeQrCloseX" aria-label="Close" title="Close">✕</button>
+    <h2>Moderator Judging Screen</h2>
+    <p>Scan this on the moderator's own phone or laptop to judge answers privately, separate from the projected screen.</p>
+    <div id="judgeQrCanvas"></div>
+    <div class="qr-url" id="judgeQrUrlText"></div>
+    <button class="btn btn-ghost" id="judgeQrClose">Close</button>
+  </div>
+</div>
+
 <!-- ---------- Play (phone) screen ---------- -->
 <section id="playScreen" hidden>
   <svg class="pint-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:44px;height:44px;">
@@ -689,6 +702,18 @@
     <h1 style="font-family:'Permanent Marker',cursive;color:var(--brass-2);">Steve's Pub Trivia</h1>
   </div>
   <div class="play-card" id="playCard"></div>
+</section>
+
+<!-- ---------- Judge (moderator) screen ---------- -->
+<section id="judgeScreen" hidden>
+  <svg class="pint-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:44px;height:44px;">
+    <path d="M12 10h20l-1.6 26.5A4 4 0 0 1 26.4 40H17.6a4 4 0 0 1-4-3.5L12 10Z" fill="#e0b354" stroke="#7a5a1c" stroke-width="1.5"/>
+    <path d="M32 15h3a4 4 0 0 1 4 4.5l-1 8A4 4 0 0 1 34 31h-2.4" stroke="#e0b354" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <div class="brand-text">
+    <h1 style="font-family:'Permanent Marker',cursive;color:var(--brass-2);">Moderator</h1>
+  </div>
+  <div class="play-card" id="judgeCard"></div>
 </section>
 
 <!-- ---------- Sign-up screen ---------- -->
@@ -827,6 +852,7 @@
 
   var STORAGE_KEY = "steves-pub-trivia-v1";
   var IS_PLAY_MODE = /(^|[?&])play=1(&|$)/.test(location.search);
+  var IS_JUDGE_MODE = /(^|[?&])judge=1(&|$)/.test(location.search);
 
   var firebaseConfig = {
     apiKey: "AIzaSyAXtZakEVOJn1AFXR2Ei12_uu6tVup-TLE",
@@ -1045,6 +1071,7 @@
       ],
       answers: {},
       grades: {},
+      present: { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 },
       isSample: true
     };
   }
@@ -1068,6 +1095,8 @@
     if(!loaded.scores) loaded.scores = {};
     if(!loaded.answers) loaded.answers = {};
     if(!loaded.grades) loaded.grades = {};
+    if(!loaded.present) loaded.present = { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 };
+    loaded.present.roundIds = toArray(loaded.present.roundIds);
     if(!loaded.questionsCurrentRoundId) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
     if(loaded.currentQuestionId === undefined) loaded.currentQuestionId = null;
     if(loaded.isSample === undefined) loaded.isSample = false;
@@ -1210,17 +1239,20 @@
 
   manageToggle.addEventListener("click", openDrawer);
   closeDrawerBtn.addEventListener("click", closeDrawer);
-  backdrop.addEventListener("click", function(){ closeDrawer(); closeSignup(); closeQuestions(); closeQr(); });
+  backdrop.addEventListener("click", function(){ closeDrawer(); closeSignup(); closeQuestions(); closeQr(); closeJudgeQr(); });
   document.addEventListener("keydown", function(e){
     if(e.key === "Escape"){
-      if(presentOverlay.classList.contains("open")){ closePresent(); }
-      else { closeDrawer(); closeSignup(); closeQuestions(); closeQr(); }
+      if(!IS_PLAY_MODE && !IS_JUDGE_MODE && presentOverlay.classList.contains("open")){ mainClosePresent(); }
+      else { closeDrawer(); closeSignup(); closeQuestions(); closeQr(); closeJudgeQr(); }
       return;
     }
-    if(presentOverlay.classList.contains("open") && !isTyping(e.target)){
-      if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); presentGoNext(); return; }
-      if(e.key === "ArrowLeft"){ presentGoPrev(); return; }
-      if(e.key === "a" || e.key === "A" || e.key === "Enter"){ presentToggleAnswer(); return; }
+    if(!IS_PLAY_MODE && !IS_JUDGE_MODE && presentOverlay.classList.contains("open") && !isTyping(e.target)){
+      if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); mainPresentNext(); return; }
+      if(e.key === "ArrowLeft"){ mainPresentPrev(); return; }
+    }
+    if(IS_JUDGE_MODE && !isTyping(e.target)){
+      if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); judgeGoNext(); return; }
+      if(e.key === "ArrowLeft"){ judgeGoPrev(); return; }
     }
     if((e.key === "m" || e.key === "M") && !isTyping(e.target)){ drawer.classList.contains("open") ? closeDrawer() : openDrawer(); }
   });
@@ -1834,14 +1866,20 @@
   questionsToggle.addEventListener("click", openQuestionsScreen);
   questionsClose.addEventListener("click", closeQuestions);
   openQuestionsFromDrawer.addEventListener("click", openQuestionsScreen);
-  presentAllFromDrawer.addEventListener("click", function(){ openPresent(state.rounds.map(function(r){ return r.id; })); });
-  presentRoundBtn.addEventListener("click", function(){ openPresent([state.questionsCurrentRoundId]); });
-  presentAllBtn.addEventListener("click", function(){ openPresent(state.rounds.map(function(r){ return r.id; })); });
+  presentAllFromDrawer.addEventListener("click", function(){ startPresentation(state.rounds.map(function(r){ return r.id; })); });
+  presentRoundBtn.addEventListener("click", function(){ startPresentation([state.questionsCurrentRoundId]); });
+  presentAllBtn.addEventListener("click", function(){ startPresentation(state.rounds.map(function(r){ return r.id; })); });
 
   // ---------- Present mode ----------
-  // Two passes per round: "ask" (read each question, no answers/pictures shown,
-  // teams submit on their phones) then "review" (go back through the same
-  // questions, reveal the answer + picture, and grade each team's answer).
+  // A round goes through three phases, tracked in state.present so every
+  // device (main screen + moderator's judge screen) sees the same thing:
+  //   "ask"     - question only, no answers/pictures, shown on the main
+  //               screen; teams submit answers on their phones.
+  //   "judging" - the main screen falls back to the live leaderboard while
+  //               the moderator grades answers privately on their own
+  //               device (?judge=1).
+  //   "reveal"  - the moderator steps through each answer (+ picture) from
+  //               their own screen; the main screen just displays it.
   var presentOverlay = document.getElementById("presentOverlay");
   var presentProgress = document.getElementById("presentProgress");
   var presentStage = document.getElementById("presentStage");
@@ -1849,18 +1887,21 @@
   var presentNext = document.getElementById("presentNext");
   var presentRevealBtn = document.getElementById("presentRevealBtn");
   var presentClose = document.getElementById("presentClose");
+  var judgeCard = document.getElementById("judgeCard");
 
-  var presentRounds = [];
-  var presentRoundIndex = 0;
-  var presentPhase = "ask";
-  var presentQueue = [];
-  var presentIndex = 0;
-  var presentAnswerShown = false;
+  var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
 
   function pushCurrentQuestion(qid){
     state.currentQuestionId = qid;
     if(fbEnabled && gameRef){
       try{ gameRef.child("currentQuestionId").set(qid || null); }catch(e){}
+    }
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function pushPresent(){
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("present").set(state.present); }catch(e){}
     }
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
@@ -1881,140 +1922,181 @@
     }
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     renderBoard();
-    renderPresentAnswersPanel();
+    renderJudgeScreen();
   }
 
-  function openPresent(roundIds){
+  function currentPresentQueue(){
+    var p = state.present;
+    return questionsForRound(p.roundIds[p.roundIndex]);
+  }
+
+  // ----- Main screen: start/cancel a presentation, and the "ask" pass -----
+
+  function startPresentation(roundIds){
     var filtered = (roundIds||[]).filter(function(rid){ return questionsForRound(rid).length > 0; });
     if(filtered.length === 0){
       alert("Add at least one question before presenting.");
       return;
     }
-    closeDrawer(); closeSignup(); closeQuestions();
-    presentRounds = filtered;
-    presentRoundIndex = 0;
-    presentPhase = "ask";
-    presentQueue = questionsForRound(presentRounds[0]);
-    presentIndex = 0;
-    presentAnswerShown = false;
-    presentOverlay.classList.add("open");
-    pushCurrentQuestion(presentQueue[0].id);
-    renderPresentSlide();
+    closeDrawer(); closeSignup(); closeQuestions(); closeQr(); closeJudgeQr();
+    state.present = { active:true, roundIds:filtered, roundIndex:0, phase:"ask", qIndex:0 };
+    pushCurrentQuestion(questionsForRound(filtered[0])[0].id);
+    pushPresent();
+    applyMainPresentState();
   }
-  function closePresent(){
-    presentOverlay.classList.remove("open");
+
+  function mainClosePresent(){
+    state.present = { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 };
     pushCurrentQuestion(null);
+    pushPresent();
+    applyMainPresentState();
   }
 
-  function presentGoNext(){
-    if(presentPhase === "done"){ closePresent(); return; }
-    presentAnswerShown = false;
-    if(presentIndex < presentQueue.length - 1){
-      presentIndex++;
-      if(presentPhase === "ask"){ pushCurrentQuestion(presentQueue[presentIndex].id); }
-      renderPresentSlide();
-      return;
-    }
-    if(presentPhase === "ask"){
-      // Everyone's had a chance to answer every question in this round - move to review.
-      presentPhase = "review";
-      presentIndex = 0;
-      pushCurrentQuestion(null);
-      renderPresentSlide();
-      return;
-    }
-    // Finished reviewing the last question of this round.
-    if(presentRoundIndex < presentRounds.length - 1){
-      presentRoundIndex++;
-      presentPhase = "ask";
-      presentQueue = questionsForRound(presentRounds[presentRoundIndex]);
-      presentIndex = 0;
-      pushCurrentQuestion(presentQueue[0].id);
-      renderPresentSlide();
+  function mainPresentNext(){
+    var p = state.present;
+    if(!p.active) return;
+    if(p.phase === "done"){ mainClosePresent(); return; }
+    if(p.phase !== "ask") return;
+    var queue = currentPresentQueue();
+    if(p.qIndex < queue.length - 1){
+      p.qIndex++;
+      pushCurrentQuestion(queue[p.qIndex].id);
     } else {
-      presentPhase = "done";
+      p.phase = "judging";
+      p.qIndex = 0;
       pushCurrentQuestion(null);
-      renderPresentSlide();
     }
+    pushPresent();
+    applyMainPresentState();
   }
 
-  function presentGoPrev(){
-    presentAnswerShown = false;
-    if(presentPhase === "done"){
-      presentPhase = "review";
-      presentRoundIndex = presentRounds.length - 1;
-      presentQueue = questionsForRound(presentRounds[presentRoundIndex]);
-      presentIndex = presentQueue.length - 1;
-      renderPresentSlide();
-      return;
-    }
-    if(presentPhase === "review"){
-      if(presentIndex > 0){
-        presentIndex--;
-        renderPresentSlide();
-        return;
-      }
-      presentPhase = "ask";
-      presentIndex = presentQueue.length - 1;
-      pushCurrentQuestion(presentQueue[presentIndex].id);
-      renderPresentSlide();
-      return;
-    }
-    // ask phase
-    if(presentIndex > 0){
-      presentIndex--;
-      pushCurrentQuestion(presentQueue[presentIndex].id);
-      renderPresentSlide();
-      return;
-    }
-    if(presentRoundIndex > 0){
-      presentRoundIndex--;
-      presentQueue = questionsForRound(presentRounds[presentRoundIndex]);
-      presentPhase = "review";
-      presentIndex = presentQueue.length - 1;
-      pushCurrentQuestion(null);
-      renderPresentSlide();
-    }
+  function mainPresentPrev(){
+    var p = state.present;
+    if(!p.active || p.phase !== "ask" || p.qIndex === 0) return;
+    p.qIndex--;
+    pushCurrentQuestion(currentPresentQueue()[p.qIndex].id);
+    pushPresent();
+    applyMainPresentState();
   }
 
-  function presentToggleAnswer(){
-    var q = presentQueue[presentIndex];
-    if(!q || (!q.answer && !q.image)) return;
-    presentAnswerShown = !presentAnswerShown;
-    renderPresentSlide();
+  function applyMainPresentState(){
+    if(IS_PLAY_MODE || IS_JUDGE_MODE) return;
+    var p = state.present;
+    if(!p || !p.active || p.phase === "judging"){
+      // No overlay during judging - the projector just shows the live-updating board.
+      presentOverlay.classList.remove("open");
+      return;
+    }
+    presentOverlay.classList.add("open");
+    renderMainPresentSlide();
   }
 
-  var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
+  function renderMainPresentSlide(){
+    var p = state.present;
 
-  function renderPresentAnswersPanel(){
-    if(!presentOverlay.classList.contains("open") || presentPhase !== "review") return;
-    var q = presentQueue[presentIndex];
+    if(p.phase === "done"){
+      presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
+      presentProgress.textContent = "All Rounds Complete";
+      presentStage.innerHTML = "";
+      var doneEl = document.createElement("div");
+      doneEl.className = "present-question";
+      doneEl.textContent = "🎉 That's every round! Head back to the board or reveal the champion.";
+      presentStage.appendChild(doneEl);
+      presentPrev.hidden = true;
+      presentNext.hidden = false;
+      presentNext.disabled = false;
+      presentNext.textContent = "Close";
+      presentRevealBtn.hidden = true;
+      return;
+    }
+
+    var queue = currentPresentQueue();
+    var q = queue[p.qIndex];
     if(!q) return;
-    var panel = document.getElementById("presentAnswersPanel");
-    if(!panel){
-      panel = document.createElement("div");
-      panel.className = "present-answers";
-      panel.id = "presentAnswersPanel";
-      presentStage.appendChild(panel);
-    } else if(panel.parentNode !== presentStage){
-      presentStage.appendChild(panel);
+    presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[p.qIndex % 2];
+    var round = state.rounds.filter(function(r){ return r.id === q.roundId; })[0] || { label:"" };
+    presentRevealBtn.hidden = true;
+
+    if(p.phase === "ask"){
+      presentProgress.innerHTML = escapeHtml(round.label) + " &middot; Asking Question <b>" + (p.qIndex+1) + "</b> of " + queue.length;
+      presentStage.innerHTML = "";
+
+      var qEl = document.createElement("div");
+      qEl.className = "present-question";
+      qEl.textContent = q.text;
+      presentStage.appendChild(qEl);
+
+      var answeredCount = (state.answers && state.answers[q.id]) ? Object.keys(state.answers[q.id]).length : 0;
+      var totalTeams = (state.teams||[]).length;
+      var counter = document.createElement("div");
+      counter.className = "present-answers-head";
+      counter.style.opacity = "0.85";
+      counter.textContent = "📱 " + answeredCount + " of " + totalTeams + " teams have answered";
+      presentStage.appendChild(counter);
+
+      presentPrev.hidden = false;
+      presentPrev.disabled = (p.qIndex === 0);
+      presentNext.hidden = false;
+      presentNext.disabled = false;
+      presentNext.textContent = (p.qIndex === queue.length - 1) ? "Finish Round →" : "Next →";
+    } else {
+      // reveal - read-only on the main screen; the moderator drives it remotely
+      presentProgress.innerHTML = escapeHtml(round.label) + " &middot; Revealing Question <b>" + (p.qIndex+1) + "</b> of " + queue.length;
+      presentStage.innerHTML = "";
+
+      var qRecap = document.createElement("div");
+      qRecap.className = "present-question";
+      qRecap.style.fontSize = "clamp(1.1rem, 3vh, 1.8rem)";
+      qRecap.style.opacity = "0.85";
+      qRecap.textContent = q.text;
+      presentStage.appendChild(qRecap);
+
+      if(q.image){
+        var img = document.createElement("img");
+        img.src = q.image;
+        img.alt = "";
+        presentStage.appendChild(img);
+      }
+
+      var aEl = document.createElement("div");
+      aEl.className = "present-answer shown";
+      aEl.textContent = q.answer ? ("Answer: " + q.answer) : "";
+      presentStage.appendChild(aEl);
+
+      var modNote = document.createElement("div");
+      modNote.className = "present-answers-head";
+      modNote.style.opacity = "0.7";
+      modNote.textContent = "🧑‍⚖️ The moderator is advancing this from their own screen";
+      presentStage.appendChild(modNote);
+
+      presentPrev.hidden = true;
+      presentNext.hidden = true;
     }
+  }
+
+  presentPrev.addEventListener("click", mainPresentPrev);
+  presentNext.addEventListener("click", mainPresentNext);
+  presentClose.addEventListener("click", mainClosePresent);
+
+  // ----- Moderator (judge) screen: judging + reveal passes -----
+
+  function renderTeamGradingRows(container, q){
+    container.innerHTML = "";
     var answersForQ = (state.answers && state.answers[q.id]) || {};
     var gradesForQ = (state.grades && state.grades[q.id]) || {};
     var teams = (state.teams||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
 
-    panel.innerHTML = "";
     var head = document.createElement("div");
     head.className = "present-answers-head";
     head.textContent = "📱 Team Answers — mark each correct or incorrect";
-    panel.appendChild(head);
+    container.appendChild(head);
 
     if(teams.length === 0){
       var empty = document.createElement("div");
       empty.className = "present-answers-head";
       empty.style.opacity = "0.6";
       empty.textContent = "No teams yet.";
-      panel.appendChild(empty);
+      container.appendChild(empty);
       return;
     }
 
@@ -2022,18 +2104,18 @@
       var row = document.createElement("div");
       row.className = "pa-row";
 
-      var head = document.createElement("div");
-      head.className = "pa-row-head";
+      var rhead = document.createElement("div");
+      rhead.className = "pa-row-head";
 
       var iconSpan = document.createElement("span");
       iconSpan.className = "row-icon";
       iconSpan.innerHTML = teamAvatarHtml(team);
-      head.appendChild(iconSpan);
+      rhead.appendChild(iconSpan);
 
       var nameEl = document.createElement("span");
       nameEl.className = "pa-name";
       nameEl.textContent = team.name;
-      head.appendChild(nameEl);
+      rhead.appendChild(nameEl);
 
       var grade = gradesForQ[team.id];
       var gradesWrap = document.createElement("span");
@@ -2053,8 +2135,8 @@
       incorrectBtn.addEventListener("click", function(){ setGrade(q.id, team.id, grade === false ? null : false); });
       gradesWrap.appendChild(incorrectBtn);
 
-      head.appendChild(gradesWrap);
-      row.appendChild(head);
+      rhead.appendChild(gradesWrap);
+      row.appendChild(rhead);
 
       var ans = answersForQ[team.id];
       var textEl = document.createElement("div");
@@ -2063,94 +2145,148 @@
       if(!ans){ textEl.style.opacity = "0.55"; textEl.style.fontStyle = "italic"; }
       row.appendChild(textEl);
 
-      panel.appendChild(row);
+      container.appendChild(row);
     });
   }
 
-  function renderPresentSlide(){
-    if(presentPhase === "done"){
-      presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
-      presentProgress.textContent = "All Rounds Complete";
-      presentStage.innerHTML = "";
-      var doneEl = document.createElement("div");
-      doneEl.className = "present-question";
-      doneEl.textContent = "🎉 That's every question! Head back to the board or reveal the champion.";
-      presentStage.appendChild(doneEl);
-      presentPrev.disabled = false;
-      presentNext.disabled = false;
-      presentNext.textContent = "Close";
-      presentRevealBtn.style.visibility = "hidden";
+  function judgeGoNext(){
+    var p = state.present;
+    if(!p.active) return;
+    var queue = currentPresentQueue();
+    if(p.phase === "judging"){
+      if(p.qIndex < queue.length - 1){
+        p.qIndex++;
+      } else {
+        p.phase = "reveal";
+        p.qIndex = 0;
+      }
+    } else if(p.phase === "reveal"){
+      if(p.qIndex < queue.length - 1){
+        p.qIndex++;
+      } else if(p.roundIndex < p.roundIds.length - 1){
+        p.roundIndex++;
+        p.phase = "ask";
+        p.qIndex = 0;
+        pushCurrentQuestion(questionsForRound(p.roundIds[p.roundIndex])[0].id);
+      } else {
+        p.phase = "done";
+      }
+    } else {
+      return;
+    }
+    pushPresent();
+    renderJudgeScreen();
+  }
+
+  function judgeGoPrev(){
+    var p = state.present;
+    if(!p.active || p.qIndex === 0) return;
+    p.qIndex--;
+    pushPresent();
+    renderJudgeScreen();
+  }
+
+  function renderJudgeScreen(){
+    if(!IS_JUDGE_MODE) return;
+    var p = state.present;
+    judgeCard.innerHTML = "";
+
+    if(!p || !p.active){
+      var waiting = document.createElement("div");
+      waiting.className = "play-status";
+      waiting.textContent = "No round in progress — waiting for the host to start presenting.";
+      judgeCard.appendChild(waiting);
       return;
     }
 
-    var q = presentQueue[presentIndex];
-    if(!q) return;
-    presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[presentIndex % 2];
-    var round = state.rounds.filter(function(r){ return r.id === q.roundId; })[0] || { label:"" };
-    var phaseLabel = presentPhase === "ask" ? "Asking" : "Reviewing";
-    presentProgress.innerHTML = escapeHtml(round.label) + " &middot; " + phaseLabel + " Question <b>" + (presentIndex+1) + "</b> of " + presentQueue.length;
+    var round = state.rounds.filter(function(r){ return r.id === p.roundIds[p.roundIndex]; })[0] || { label:"" };
 
-    presentStage.innerHTML = "";
-
-    if(presentPhase === "ask"){
-      var qEl = document.createElement("div");
-      qEl.className = "present-question";
-      qEl.textContent = q.text;
-      presentStage.appendChild(qEl);
-
-      var answeredCount = (state.answers && state.answers[q.id]) ? Object.keys(state.answers[q.id]).length : 0;
-      var totalTeams = (state.teams||[]).length;
-      var counter = document.createElement("div");
-      counter.className = "present-answers-head";
-      counter.style.opacity = "0.85";
-      counter.textContent = "📱 " + answeredCount + " of " + totalTeams + " teams have answered";
-      presentStage.appendChild(counter);
-
-      presentPrev.disabled = (presentRoundIndex === 0 && presentIndex === 0);
-      presentNext.disabled = false;
-      presentNext.textContent = (presentIndex === presentQueue.length - 1) ? "Review Answers →" : "Next →";
-      presentRevealBtn.style.visibility = "hidden";
-    } else {
-      var qRecap = document.createElement("div");
-      qRecap.className = "present-question";
-      qRecap.style.fontSize = "clamp(1.1rem, 3vh, 1.8rem)";
-      qRecap.style.opacity = "0.85";
-      qRecap.textContent = q.text;
-      presentStage.appendChild(qRecap);
-
-      if(presentAnswerShown && q.image){
-        var img = document.createElement("img");
-        img.src = q.image;
-        img.alt = "";
-        presentStage.appendChild(img);
-      }
-
-      var aEl = document.createElement("div");
-      aEl.className = "present-answer" + (presentAnswerShown ? " shown" : "");
-      aEl.textContent = q.answer ? ("Answer: " + q.answer) : (q.image ? "" : "(No answer text saved for this question)");
-      presentStage.appendChild(aEl);
-
-      renderPresentAnswersPanel();
-
-      presentPrev.disabled = false;
-      presentNext.disabled = false;
-      var isLastQOfRound = presentIndex === presentQueue.length - 1;
-      var isLastRound = presentRoundIndex === presentRounds.length - 1;
-      presentNext.textContent = isLastQOfRound ? (isLastRound ? "Finish →" : "Next Round →") : "Next Question →";
-      presentRevealBtn.style.visibility = (q.answer || q.image) ? "visible" : "hidden";
-      presentRevealBtn.textContent = presentAnswerShown ? "Hide Answer" : "Reveal Answer";
+    if(p.phase === "ask"){
+      var askMsg = document.createElement("div");
+      askMsg.className = "play-status";
+      askMsg.textContent = escapeHtml(round.label) + " — the host is still asking questions. Judging starts once they finish.";
+      judgeCard.appendChild(askMsg);
+      return;
     }
-  }
 
-  presentPrev.addEventListener("click", presentGoPrev);
-  presentNext.addEventListener("click", presentGoNext);
-  presentRevealBtn.addEventListener("click", presentToggleAnswer);
-  presentClose.addEventListener("click", closePresent);
+    if(p.phase === "done"){
+      var doneMsg = document.createElement("div");
+      doneMsg.className = "play-status";
+      doneMsg.textContent = "🎉 All rounds complete!";
+      judgeCard.appendChild(doneMsg);
+      return;
+    }
+
+    var queue = currentPresentQueue();
+    var q = queue[p.qIndex];
+    if(!q) return;
+
+    var progress = document.createElement("div");
+    progress.className = "play-status";
+    progress.textContent = escapeHtml(round.label) + " — " + (p.phase === "judging" ? "Judging" : "Revealing") + " Question " + (p.qIndex+1) + " of " + queue.length;
+    judgeCard.appendChild(progress);
+
+    var qEl = document.createElement("div");
+    qEl.className = "play-question";
+    qEl.textContent = q.text;
+    judgeCard.appendChild(qEl);
+
+    if(q.image){
+      var img = document.createElement("img");
+      img.src = q.image;
+      img.style.maxWidth = "100%";
+      img.style.borderRadius = "12px";
+      judgeCard.appendChild(img);
+    }
+
+    var ansEl = document.createElement("div");
+    ansEl.className = "present-answer shown";
+    ansEl.style.opacity = "1";
+    ansEl.textContent = q.answer ? ("Answer: " + q.answer) : "(No answer text saved for this question)";
+    judgeCard.appendChild(ansEl);
+
+    if(p.phase === "judging"){
+      var panelHost = document.createElement("div");
+      judgeCard.appendChild(panelHost);
+      renderTeamGradingRows(panelHost, q);
+    } else {
+      var hint = document.createElement("div");
+      hint.className = "play-status";
+      hint.textContent = "Now showing on the main screen.";
+      judgeCard.appendChild(hint);
+    }
+
+    var navRow = document.createElement("div");
+    navRow.style.display = "flex";
+    navRow.style.gap = "0.6rem";
+    navRow.style.marginTop = "0.5rem";
+
+    var prevBtn = document.createElement("button");
+    prevBtn.className = "present-nav-btn";
+    prevBtn.textContent = "← Prev";
+    prevBtn.disabled = p.qIndex === 0;
+    prevBtn.addEventListener("click", judgeGoPrev);
+    navRow.appendChild(prevBtn);
+
+    var nextBtn = document.createElement("button");
+    nextBtn.className = "present-nav-btn";
+    var isLastQ = p.qIndex === queue.length - 1;
+    if(p.phase === "judging"){
+      nextBtn.textContent = isLastQ ? "Finish Judging →" : "Next →";
+    } else {
+      var isLastRound = p.roundIndex === p.roundIds.length - 1;
+      nextBtn.textContent = isLastQ ? (isLastRound ? "Finish →" : "Next Round →") : "Next →";
+    }
+    nextBtn.addEventListener("click", judgeGoNext);
+    navRow.appendChild(nextBtn);
+
+    judgeCard.appendChild(navRow);
+  }
 
   // ---------- Reset ----------
   document.getElementById("resetBtn").addEventListener("click", function(){
     if(confirm("Reset all teams, rounds, scores and questions? This can't be undone.")){
-      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, grades:{}, isSample:false };
+      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, grades:{}, present:{active:false,roundIds:[],roundIndex:0,phase:"ask",qIndex:0}, isSample:false };
       state.currentRoundId = state.rounds[0].id;
       state.questionsCurrentRoundId = state.rounds[0].id;
       persistAndRender();
@@ -2229,6 +2365,7 @@
   // ---------- QR join + Play (phone) mode ----------
   var appEl = document.getElementById("app");
   var playScreenEl = document.getElementById("playScreen");
+  var judgeScreenEl = document.getElementById("judgeScreen");
   var playCard = document.getElementById("playCard");
   var qrOverlay = document.getElementById("qrOverlay");
   var qrToggle = document.getElementById("qrToggle");
@@ -2248,12 +2385,38 @@
       }
     }catch(e){}
     qrToggle.addEventListener("click", function(){
-      closeDrawer(); closeSignup(); closeQuestions();
+      closeDrawer(); closeSignup(); closeQuestions(); closeJudgeQr();
       qrOverlay.classList.add("open");
     });
     qrCloseBtn.addEventListener("click", closeQr);
     qrCloseX.addEventListener("click", closeQr);
     qrOverlay.addEventListener("click", function(e){ if(e.target === qrOverlay){ closeQr(); } });
+  }
+
+  var judgeQrOverlay = document.getElementById("judgeQrOverlay");
+  var judgeQrToggle = document.getElementById("judgeQrToggle");
+  var judgeQrCloseBtn = document.getElementById("judgeQrClose");
+  var judgeQrCloseX = document.getElementById("judgeQrCloseX");
+  var judgeQrCanvasEl = document.getElementById("judgeQrCanvas");
+  var judgeQrUrlText = document.getElementById("judgeQrUrlText");
+  var judgeUrl = location.origin + location.pathname + "?judge=1";
+
+  function closeJudgeQr(){ judgeQrOverlay.classList.remove("open"); }
+
+  if(!IS_PLAY_MODE && !IS_JUDGE_MODE){
+    judgeQrUrlText.textContent = judgeUrl;
+    try{
+      if(window.QRCode){
+        new QRCode(judgeQrCanvasEl, { text: judgeUrl, width:220, height:220, colorDark:"#12100d", colorLight:"#ffffff" });
+      }
+    }catch(e){}
+    judgeQrToggle.addEventListener("click", function(){
+      closeDrawer(); closeSignup(); closeQuestions(); closeQr();
+      judgeQrOverlay.classList.add("open");
+    });
+    judgeQrCloseBtn.addEventListener("click", closeJudgeQr);
+    judgeQrCloseX.addEventListener("click", closeJudgeQr);
+    judgeQrOverlay.addEventListener("click", function(e){ if(e.target === judgeQrOverlay){ closeJudgeQr(); } });
   }
 
   function playJoinTeam(name, iconKey, photo){
@@ -2490,18 +2653,25 @@
 
   function renderAll(){
     if(IS_PLAY_MODE){ renderPlayScreen(); return; }
+    if(IS_JUDGE_MODE){ renderJudgeScreen(); return; }
     renderBoard();
     if(drawer.classList.contains("open")){ renderDrawer(); }
     if(questionsScreen.classList.contains("open")){ renderQuestionsScreen(); }
     if(signupScreen.classList.contains("open")){ renderSignupRoster(); }
-    if(presentOverlay.classList.contains("open")){ renderPresentAnswersPanel(); }
+    applyMainPresentState();
   }
 
   if(IS_PLAY_MODE){
     appEl.hidden = true;
     playScreenEl.hidden = false;
+    judgeScreenEl.hidden = true;
+  } else if(IS_JUDGE_MODE){
+    appEl.hidden = true;
+    playScreenEl.hidden = true;
+    judgeScreenEl.hidden = false;
   } else {
     playScreenEl.hidden = true;
+    judgeScreenEl.hidden = true;
   }
 
   if(fbEnabled && gameRef){
