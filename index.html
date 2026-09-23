@@ -530,16 +530,26 @@
     position:fixed; inset:0; z-index:45; display:flex; align-items:center; justify-content:center;
     background: rgba(0,0,0,0.75);
     opacity:0; pointer-events:none; transition: opacity 0.25s ease;
-    padding:2rem;
+    padding:2rem; overflow-y:auto;
   }
   .qr-overlay.open{ opacity:1; pointer-events:auto; }
   .qr-card{
+    position:relative;
     background: var(--chalk); color:#12100d; border-radius:20px; padding:2rem;
     display:flex; flex-direction:column; align-items:center; gap:1rem; max-width:360px; text-align:center;
+    max-height:90vh; overflow-y:auto;
     box-shadow: var(--shadow);
   }
   .qr-card h2{ margin:0; font-family:'Permanent Marker', cursive; color:#12100d; font-size:1.5rem; }
   .qr-card p{ margin:0; font-family:'Inter', sans-serif; font-size:0.85rem; color:#4a3f33; }
+  .qr-x{
+    position:absolute; top:0.75rem; right:0.75rem;
+    width:2.1rem; height:2.1rem; border-radius:8px; flex:0 0 auto;
+    border:1px solid rgba(18,16,13,0.2); background:rgba(18,16,13,0.06);
+    color:#12100d; cursor:pointer; font-size:1.05rem;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .qr-x:hover{ background:rgba(18,16,13,0.16); }
   #qrCanvas{ background:#fff; padding:0.75rem; border-radius:12px; }
   .qr-url{ font-family:'Inter', sans-serif; font-size:0.78rem; color:#4a3f33; word-break:break-all; }
 
@@ -643,6 +653,7 @@
 <!-- ---------- QR join overlay ---------- -->
 <div class="qr-overlay" id="qrOverlay">
   <div class="qr-card">
+    <button class="qr-x" id="qrCloseX" aria-label="Close" title="Close">✕</button>
     <h2>Join on Your Phone</h2>
     <p>Scan this code, pick your team name &amp; logo, and submit answers live from your seat.</p>
     <div id="qrCanvas"></div>
@@ -1175,11 +1186,11 @@
 
   manageToggle.addEventListener("click", openDrawer);
   closeDrawerBtn.addEventListener("click", closeDrawer);
-  backdrop.addEventListener("click", function(){ closeDrawer(); closeSignup(); closeQuestions(); });
+  backdrop.addEventListener("click", function(){ closeDrawer(); closeSignup(); closeQuestions(); closeQr(); });
   document.addEventListener("keydown", function(e){
     if(e.key === "Escape"){
       if(presentOverlay.classList.contains("open")){ closePresent(); }
-      else { closeDrawer(); closeSignup(); closeQuestions(); }
+      else { closeDrawer(); closeSignup(); closeQuestions(); closeQr(); }
       return;
     }
     if(presentOverlay.classList.contains("open") && !isTyping(e.target)){
@@ -2198,9 +2209,12 @@
   var qrOverlay = document.getElementById("qrOverlay");
   var qrToggle = document.getElementById("qrToggle");
   var qrCloseBtn = document.getElementById("qrClose");
+  var qrCloseX = document.getElementById("qrCloseX");
   var qrCanvasEl = document.getElementById("qrCanvas");
   var qrUrlText = document.getElementById("qrUrlText");
   var joinUrl = location.origin + location.pathname + "?play=1";
+
+  function closeQr(){ qrOverlay.classList.remove("open"); }
 
   if(!IS_PLAY_MODE){
     qrUrlText.textContent = joinUrl;
@@ -2213,7 +2227,9 @@
       closeDrawer(); closeSignup(); closeQuestions();
       qrOverlay.classList.add("open");
     });
-    qrCloseBtn.addEventListener("click", function(){ qrOverlay.classList.remove("open"); });
+    qrCloseBtn.addEventListener("click", closeQr);
+    qrCloseX.addEventListener("click", closeQr);
+    qrOverlay.addEventListener("click", function(e){ if(e.target === qrOverlay){ closeQr(); } });
   }
 
   function playJoinTeam(name, iconKey){
