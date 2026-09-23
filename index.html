@@ -168,6 +168,7 @@
     height: clamp(1.6rem, 4.6vh, 2.6rem);
   }
   .team-mascot svg{ width:100%; height:100%; display:block; }
+  .team-mascot img, .row-icon img{ width:100%; height:100%; display:block; object-fit:cover; border-radius:50%; }
 
   .team-score{
     position:relative;
@@ -568,6 +569,20 @@
   #playScreen .signup-label{ text-align:left; margin: 0.75rem 0 0.5rem; }
   #playScreen .logo-grid{ grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
   #playScreen .logo-card svg{ width:40px; height:40px; }
+  .avatar-mode-tabs{ display:flex; gap:0.5rem; }
+  .avatar-mode-tab{
+    flex:1; font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1px; font-size:0.78rem;
+    background: var(--surface); border:1px solid var(--line); color:var(--muted);
+    padding:0.65rem 0.5rem; border-radius:10px; cursor:pointer;
+  }
+  .avatar-mode-tab.active{ background:var(--surface-2); border-color:var(--brass); color:var(--chalk); }
+  .avatar-photo-section{ display:flex; flex-direction:column; align-items:center; gap:0.85rem; }
+  .avatar-photo-preview{
+    width:130px; height:130px; border-radius:50%; overflow:hidden; flex:0 0 auto;
+    background:var(--surface-2); border:2px solid var(--line); display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:2.2rem;
+  }
+  .avatar-photo-preview img{ width:100%; height:100%; object-fit:cover; display:block; }
   #playScreen textarea{
     background: var(--surface-2); border:1px solid var(--line); color: var(--chalk);
     border-radius:10px; padding:0.85rem; font-family:'Inter', sans-serif; font-size:1rem;
@@ -974,6 +989,13 @@
     return (ICONS[key] || ICONS.bell).svg;
   }
 
+  function teamAvatarHtml(team){
+    if(team && team.photo){
+      return '<img src="' + team.photo + '" alt="">';
+    }
+    return iconSvg(team ? team.icon : null);
+  }
+
   function nextAccent(existingTeams){
     var used = {};
     existingTeams.forEach(function(t){ used[t.accent] = (used[t.accent]||0)+1; });
@@ -1161,7 +1183,7 @@
       var idWrap = document.createElement("div");
       idWrap.className = "team-id";
       idWrap.innerHTML =
-        '<span class="team-mascot">' + iconSvg(team.icon) + '</span>' +
+        '<span class="team-mascot">' + teamAvatarHtml(team) + '</span>' +
         '<span class="team-dot" style="background:' + accentVal(team.accent) + '"></span>' +
         '<span class="team-name">' + escapeHtml(team.name||"Unnamed Team") + '</span>';
       row.appendChild(idWrap);
@@ -1255,7 +1277,7 @@
 
       var iconSpan = document.createElement("span");
       iconSpan.className = "row-icon";
-      iconSpan.innerHTML = iconSvg(team.icon);
+      iconSpan.innerHTML = teamAvatarHtml(team);
       row.appendChild(iconSpan);
 
       var nameInput = document.createElement("input");
@@ -1477,7 +1499,7 @@
       chip.className = "roster-chip";
       var iconSpan = document.createElement("span");
       iconSpan.className = "row-icon";
-      iconSpan.innerHTML = iconSvg(team.icon);
+      iconSpan.innerHTML = teamAvatarHtml(team);
       chip.appendChild(iconSpan);
       var nameSpan = document.createElement("span");
       nameSpan.textContent = team.name;
@@ -2003,7 +2025,7 @@
 
       var iconSpan = document.createElement("span");
       iconSpan.className = "row-icon";
-      iconSpan.innerHTML = iconSvg(team.icon);
+      iconSpan.innerHTML = teamAvatarHtml(team);
       head.appendChild(iconSpan);
 
       var nameEl = document.createElement("span");
@@ -2232,9 +2254,9 @@
     qrOverlay.addEventListener("click", function(e){ if(e.target === qrOverlay){ closeQr(); } });
   }
 
-  function playJoinTeam(name, iconKey){
+  function playJoinTeam(name, iconKey, photo){
     var id = uid();
-    var team = { id:id, name:name, icon:iconKey, accent: nextAccent(state.teams||[]) };
+    var team = { id:id, name:name, icon: iconKey || "bell", accent: nextAccent(state.teams||[]), photo: photo || "" };
     state.teams = (state.teams||[]).concat([team]);
     if(!state.scores) state.scores = {};
     state.scores[id] = {};
@@ -2280,6 +2302,24 @@
       nameInput.style.width = "100%";
       playCard.appendChild(nameInput);
 
+      var avatarMode = "icon";
+      var chosen = null;
+      var chosenPhoto = null;
+
+      var tabsWrap = document.createElement("div");
+      tabsWrap.className = "avatar-mode-tabs";
+      var iconTab = document.createElement("button");
+      iconTab.type = "button";
+      iconTab.className = "avatar-mode-tab active";
+      iconTab.textContent = "🎨 Pick an Icon";
+      var photoTab = document.createElement("button");
+      photoTab.type = "button";
+      photoTab.className = "avatar-mode-tab";
+      photoTab.textContent = "📷 Add a Photo";
+      tabsWrap.appendChild(iconTab);
+      tabsWrap.appendChild(photoTab);
+      playCard.appendChild(tabsWrap);
+
       var label2 = document.createElement("div");
       label2.className = "signup-label";
       label2.textContent = "Pick a Philly Logo";
@@ -2287,7 +2327,6 @@
 
       var grid = document.createElement("div");
       grid.className = "logo-grid";
-      var chosen = null;
       ICON_KEYS.forEach(function(key){
         var card = document.createElement("div");
         card.className = "logo-card";
@@ -2296,11 +2335,67 @@
           chosen = key;
           Array.prototype.forEach.call(grid.children, function(c){ c.classList.remove("selected"); });
           card.classList.add("selected");
-          joinBtn.disabled = !(nameInput.value.trim() && chosen);
+          updateJoinReady();
         });
         grid.appendChild(card);
       });
       playCard.appendChild(grid);
+
+      var photoSection = document.createElement("div");
+      photoSection.className = "avatar-photo-section";
+      photoSection.hidden = true;
+
+      var photoPreview = document.createElement("div");
+      photoPreview.className = "avatar-photo-preview";
+      photoPreview.textContent = "📷";
+      photoSection.appendChild(photoPreview);
+
+      var photoFileLabel = document.createElement("label");
+      photoFileLabel.className = "file-btn";
+      photoFileLabel.innerHTML = "📷 Take or Choose Photo";
+      var photoFileInput = document.createElement("input");
+      photoFileInput.type = "file";
+      photoFileInput.accept = "image/*";
+      photoFileInput.addEventListener("change", function(){
+        var file = photoFileInput.files && photoFileInput.files[0];
+        if(!file) return;
+        resizeImageFile(file, 640, function(dataUrl){
+          if(!dataUrl) return;
+          chosenPhoto = dataUrl;
+          photoPreview.innerHTML = '<img src="' + dataUrl + '" alt="">';
+          removePhotoBtn.hidden = false;
+          updateJoinReady();
+        });
+      });
+      photoFileLabel.appendChild(photoFileInput);
+      photoSection.appendChild(photoFileLabel);
+
+      var removePhotoBtn = document.createElement("button");
+      removePhotoBtn.type = "button";
+      removePhotoBtn.className = "btn btn-ghost";
+      removePhotoBtn.textContent = "Remove Photo";
+      removePhotoBtn.hidden = true;
+      removePhotoBtn.addEventListener("click", function(){
+        chosenPhoto = null;
+        photoPreview.innerHTML = "📷";
+        removePhotoBtn.hidden = true;
+        updateJoinReady();
+      });
+      photoSection.appendChild(removePhotoBtn);
+
+      playCard.appendChild(photoSection);
+
+      function setAvatarMode(mode){
+        avatarMode = mode;
+        iconTab.classList.toggle("active", mode === "icon");
+        photoTab.classList.toggle("active", mode === "photo");
+        label2.hidden = mode !== "icon";
+        grid.hidden = mode !== "icon";
+        photoSection.hidden = mode !== "photo";
+        updateJoinReady();
+      }
+      iconTab.addEventListener("click", function(){ setAvatarMode("icon"); });
+      photoTab.addEventListener("click", function(){ setAvatarMode("photo"); });
 
       var joinBtn = document.createElement("button");
       joinBtn.className = "btn btn-primary";
@@ -2309,20 +2404,23 @@
       joinBtn.style.marginTop = "0.5rem";
       joinBtn.addEventListener("click", function(){
         var name = nameInput.value.trim();
-        if(!name || !chosen) return;
-        playJoinTeam(name, chosen);
+        if(!name) return;
+        if(avatarMode === "photo" && chosenPhoto){ playJoinTeam(name, null, chosenPhoto); }
+        else if(avatarMode === "icon" && chosen){ playJoinTeam(name, chosen, null); }
       });
       playCard.appendChild(joinBtn);
 
-      nameInput.addEventListener("input", function(){
-        joinBtn.disabled = !(nameInput.value.trim() && chosen);
-      });
+      function updateJoinReady(){
+        var hasAvatar = avatarMode === "photo" ? !!chosenPhoto : !!chosen;
+        joinBtn.disabled = !(nameInput.value.trim() && hasAvatar);
+      }
+      nameInput.addEventListener("input", updateJoinReady);
       return;
     }
 
     var chip = document.createElement("div");
     chip.className = "play-team-chip";
-    chip.innerHTML = '<span class="row-icon">'+iconSvg(myTeam.icon)+'</span><span>'+escapeHtml(myTeam.name)+'</span>';
+    chip.innerHTML = '<span class="row-icon">'+teamAvatarHtml(myTeam)+'</span><span>'+escapeHtml(myTeam.name)+'</span>';
     playCard.appendChild(chip);
 
     var scoreEl = document.createElement("div");
