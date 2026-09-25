@@ -1469,7 +1469,7 @@
 
   addTestRoundBtn.addEventListener("click", function(){
     var id = uid();
-    state.rounds.push({ id:id, label:"🧪 Test Round", isTest:true });
+    state.rounds.push({ id:id, label:"Test Round", isTest:true });
     state.questions.push(
       { id:uid(), roundId:id, text:"Test question 1 — just checking the flow works.", answer:"Any answer works, this is just a test", image:"", order:0 },
       { id:uid(), roundId:id, text:"Test question 2 — try a picture reveal here if you like.", answer:"Still just testing", image:"", order:1 }
@@ -1693,7 +1693,7 @@
       var tab = document.createElement("button");
       tab.type = "button";
       tab.className = "round-tab" + (round.id === state.questionsCurrentRoundId ? " active" : "");
-      tab.innerHTML = escapeHtml(round.label) + '<span class="count">(' + questionsForRound(round.id).length + ')</span>';
+      tab.innerHTML = (round.isTest ? "🧪 " : "") + escapeHtml(round.label) + '<span class="count">(' + questionsForRound(round.id).length + ')</span>';
       tab.addEventListener("click", function(){
         state.questionsCurrentRoundId = round.id;
         cancelQuestionForm();
