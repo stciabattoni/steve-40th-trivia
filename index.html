@@ -463,10 +463,49 @@
     font-size:clamp(0.7rem,1.6vh,0.95rem); color:var(--muted);
   }
   .present-progress b{ color:var(--brass); }
+  .present-body{
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:row; overflow:hidden;
+  }
   .present-stage{
-    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap: clamp(1rem,3vh,2rem); padding: 0 clamp(1.5rem,6vw,4rem) clamp(1rem,3vh,2rem); text-align:center;
     overflow-y:auto;
+  }
+  .present-sidebar{
+    flex:0 0 25%; min-width:220px; min-height:0;
+    border-left:1px solid rgba(241,232,214,0.15);
+    background: rgba(0,0,0,0.28);
+    padding: 1rem 0.85rem; overflow-y:auto;
+    display:flex; flex-direction:column; gap:0.5rem;
+  }
+  .present-sidebar-head{
+    font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:0.8rem; color:var(--brass-2); margin-bottom:0.25rem; flex:0 0 auto;
+  }
+  .ps-row{
+    display:flex; align-items:center; gap:0.5rem; flex:0 0 auto;
+    background: rgba(0,0,0,0.25); border-radius:8px; padding:0.4rem 0.55rem;
+  }
+  .ps-row.lead{ background: rgba(212,165,69,0.18); border:1px solid rgba(212,165,69,0.4); }
+  .ps-rank{
+    font-family:'Oswald', sans-serif; font-weight:700; color:var(--muted);
+    width:1.3rem; text-align:center; flex:0 0 auto; font-size:0.85rem;
+  }
+  .ps-row.lead .ps-rank{ color: var(--brass-2); }
+  .ps-icon{ width:1.3rem; height:1.3rem; flex:0 0 auto; }
+  .ps-icon svg, .ps-icon img{ width:100%; height:100%; display:block; }
+  .ps-icon img{ object-fit:cover; border-radius:50%; }
+  .ps-name{
+    flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family:'Inter', sans-serif; font-size:0.82rem; color:var(--chalk); font-weight:600;
+  }
+  .ps-score{
+    font-family:'Oswald', sans-serif; font-weight:700; color:var(--brass-2);
+    font-size:0.95rem; flex:0 0 auto; font-variant-numeric: tabular-nums;
+  }
+  .ps-empty{ font-family:'Inter', sans-serif; font-size:0.82rem; color:var(--muted); text-align:center; padding:1rem 0; }
+  @media (max-width: 700px){
+    .present-sidebar{ display:none; }
   }
   .present-stage img{
     max-width:min(100%, 900px); max-height:44vh; object-fit:contain; border-radius:14px;
@@ -840,7 +879,13 @@
     <div class="present-progress" id="presentProgress">Round 1 &middot; Question <b>1</b> of 1</div>
     <button class="icon-btn" id="presentClose" aria-label="Exit presentation" title="Exit (Esc)">✕</button>
   </div>
-  <div class="present-stage" id="presentStage"></div>
+  <div class="present-body">
+    <div class="present-stage" id="presentStage"></div>
+    <aside class="present-sidebar" id="presentSidebar">
+      <div class="present-sidebar-head">🏆 Leaderboard</div>
+      <div id="presentSidebarList"></div>
+    </aside>
+  </div>
   <div class="present-bottom">
     <button class="present-nav-btn" id="presentPrev">← Prev</button>
     <button class="present-nav-btn" id="presentRevealBtn">Reveal Answer</button>
@@ -1975,11 +2020,51 @@
   var presentOverlay = document.getElementById("presentOverlay");
   var presentProgress = document.getElementById("presentProgress");
   var presentStage = document.getElementById("presentStage");
+  var presentSidebarList = document.getElementById("presentSidebarList");
   var presentPrev = document.getElementById("presentPrev");
   var presentNext = document.getElementById("presentNext");
   var presentRevealBtn = document.getElementById("presentRevealBtn");
   var presentClose = document.getElementById("presentClose");
   var judgeCard = document.getElementById("judgeCard");
+
+  function renderPresentSidebar(){
+    presentSidebarList.innerHTML = "";
+    var teams = ranked();
+    if(teams.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "ps-empty";
+      empty.textContent = "No teams yet";
+      presentSidebarList.appendChild(empty);
+      return;
+    }
+    teams.forEach(function(team, i){
+      var total = teamTotal(team);
+      var row = document.createElement("div");
+      row.className = "ps-row" + (i === 0 && total > 0 ? " lead" : "");
+
+      var rank = document.createElement("span");
+      rank.className = "ps-rank";
+      rank.textContent = String(i+1);
+      row.appendChild(rank);
+
+      var icon = document.createElement("span");
+      icon.className = "ps-icon";
+      icon.innerHTML = teamAvatarHtml(team);
+      row.appendChild(icon);
+
+      var name = document.createElement("span");
+      name.className = "ps-name";
+      name.textContent = team.name;
+      row.appendChild(name);
+
+      var score = document.createElement("span");
+      score.className = "ps-score";
+      score.textContent = total;
+      row.appendChild(score);
+
+      presentSidebarList.appendChild(row);
+    });
+  }
 
   var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
 
@@ -2085,6 +2170,7 @@
 
   function renderMainPresentSlide(){
     var p = state.present;
+    renderPresentSidebar();
 
     if(p.phase === "done"){
       presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
