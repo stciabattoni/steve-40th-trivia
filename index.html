@@ -2278,7 +2278,7 @@
     if(p.phase === "wager"){
       var wagerRound = roundForId(p.roundIds[p.roundIndex]) || { label:"" };
       presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
-      presentProgress.innerHTML = escapeHtml(wagerRound.label) + " &middot; Final Wager";
+      presentProgress.innerHTML = escapeHtml(wagerRound.label) + " &middot; Place Your Wager";
       presentStage.innerHTML = "";
 
       var wEl = document.createElement("div");
