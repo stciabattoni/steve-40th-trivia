@@ -795,7 +795,9 @@
       <div id="roundList"></div>
       <div class="field-row" style="margin-top:0.75rem;">
         <button class="btn btn-ghost" id="addRoundBtn">+ Add Round</button>
+        <button class="btn btn-ghost" id="addTestRoundBtn" title="Adds a round with sample questions for testing — never shown in Present Full Game and never counts toward scores">🧪 Add Test Round</button>
       </div>
+      <div class="note" style="margin-top:0.75rem;">Test rounds (🧪) are for rehearsing the flow — they're skipped by "Present Full Game" and their points never count toward the real leaderboard.</div>
     </section>
 
     <section class="panel">
@@ -1055,10 +1057,10 @@
         { id:t4, name:"Two Pints In", icon:"love", accent:"oxblood" }
       ],
       rounds: [
-        { id:r1, label:"Round 1: General Knowledge" },
-        { id:r2, label:"Round 2: 40 Years of Steve" },
-        { id:r3, label:"Round 3: Music & Movies" },
-        { id:r4, label:"Round 4: Wildcard" }
+        { id:r1, label:"Round 1: General Knowledge", isTest:false },
+        { id:r2, label:"Round 2: 40 Years of Steve", isTest:false },
+        { id:r3, label:"Round 3: Music & Movies", isTest:false },
+        { id:r4, label:"Round 4: Wildcard", isTest:false }
       ],
       currentRoundId: r3,
       questionsCurrentRoundId: r1,
@@ -1090,6 +1092,7 @@
     if(!loaded){ return defaultState(); }
     loaded.rounds = toArray(loaded.rounds);
     if(!loaded.rounds.length){ return defaultState(); }
+    loaded.rounds.forEach(function(r){ if(r.isTest === undefined) r.isTest = false; });
     loaded.teams = toArray(loaded.teams);
     loaded.questions = toArray(loaded.questions);
     if(!loaded.scores) loaded.scores = {};
@@ -1128,6 +1131,7 @@
   }
 
   var state = loadState();
+  var dataLoaded = !fbEnabled; // if Firebase is unreachable we render local/sample data immediately
 
   try{
     if(window.claude && window.claude.hot && window.claude.hot.snapshot){
@@ -1140,11 +1144,20 @@
     return ACCENTS[0].val;
   }
 
+  function isTestRound(roundId){
+    var round = (state.rounds||[]).filter(function(r){ return r.id === roundId; })[0];
+    return !!(round && round.isTest);
+  }
+
   function gradedPointsForTeam(teamId){
     var pts = 0;
     if(state.grades){
       for(var qid in state.grades){
-        if(Object.prototype.hasOwnProperty.call(state.grades, qid) && state.grades[qid][teamId] === true){ pts += 1; }
+        if(!Object.prototype.hasOwnProperty.call(state.grades, qid)) continue;
+        if(state.grades[qid][teamId] !== true) continue;
+        var q = (state.questions||[]).filter(function(x){ return x.id === qid; })[0];
+        if(q && isTestRound(q.roundId)) continue; // test-round grading never counts toward real scores
+        pts += 1;
       }
     }
     return pts;
@@ -1153,9 +1166,24 @@
   function teamTotal(team){
     var s = state.scores[team.id] || {};
     var total = 0;
-    for(var k in s){ if(Object.prototype.hasOwnProperty.call(s,k)){ total += Number(s[k])||0; } }
+    for(var k in s){
+      if(!Object.prototype.hasOwnProperty.call(s,k)) continue;
+      if(isTestRound(k)) continue; // test-round scores never count toward the real leaderboard
+      total += Number(s[k])||0;
+    }
     total += gradedPointsForTeam(team.id);
     return total;
+  }
+
+  function setManualScore(teamId, roundId, value){
+    // Scoped write so a manual score edit doesn't re-upload the whole game
+    // state (including every embedded question photo) on every keystroke.
+    if(!state.scores[teamId]) state.scores[teamId] = {};
+    state.scores[teamId][roundId] = value;
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("scores/"+teamId+"/"+roundId).set(value); }catch(e){}
+    }
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
 
   function ranked(){
@@ -1174,6 +1202,14 @@
   var subheadEl = document.getElementById("subhead");
 
   function renderBoard(){
+    if(!dataLoaded){
+      boardEl.innerHTML = "";
+      var loading = document.createElement("div");
+      loading.className = "empty-board";
+      loading.textContent = "⏳ Loading your saved game…";
+      boardEl.appendChild(loading);
+      return;
+    }
     subheadEl.textContent = state.subtitle || "40th Birthday Bash";
 
     var idx = state.rounds.findIndex(function(r){ return r.id === state.currentRoundId; });
@@ -1346,6 +1382,23 @@
 
   var roundList = document.getElementById("roundList");
   var addRoundBtn = document.getElementById("addRoundBtn");
+  var addTestRoundBtn = document.getElementById("addTestRoundBtn");
+
+  function removeRoundData(roundId){
+    // Clean up everything tied to a round so no orphaned points can ever
+    // sneak back into a team's total after the round/questions are gone.
+    var deadQuestionIds = state.questions.filter(function(q){ return q.roundId === roundId; }).map(function(q){ return q.id; });
+    state.questions = state.questions.filter(function(q){ return q.roundId !== roundId; });
+    deadQuestionIds.forEach(function(qid){
+      delete state.answers[qid];
+      delete state.grades[qid];
+    });
+    for(var teamId in state.scores){
+      if(Object.prototype.hasOwnProperty.call(state.scores, teamId)){
+        delete state.scores[teamId][roundId];
+      }
+    }
+  }
 
   function renderRoundList(){
     roundList.innerHTML = "";
@@ -1356,6 +1409,14 @@
       var radio = document.createElement("span");
       radio.className = "radio";
       row.appendChild(radio);
+
+      if(round.isTest){
+        var badge = document.createElement("span");
+        badge.textContent = "🧪";
+        badge.title = "Test round — excluded from Present Full Game and real scores";
+        badge.style.flex = "0 0 auto";
+        row.appendChild(badge);
+      }
 
       var nameInput = document.createElement("input");
       nameInput.type = "text";
@@ -1378,7 +1439,7 @@
         e.stopPropagation();
         if(state.rounds.length <= 1) return;
         state.rounds = state.rounds.filter(function(r){ return r.id !== round.id; });
-        state.questions = state.questions.filter(function(q){ return q.roundId !== round.id; });
+        removeRoundData(round.id);
         if(state.currentRoundId === round.id){ state.currentRoundId = state.rounds[0].id; }
         if(state.questionsCurrentRoundId === round.id){ state.questionsCurrentRoundId = state.rounds[0].id; }
         persistAndRender();
@@ -1399,8 +1460,21 @@
 
   addRoundBtn.addEventListener("click", function(){
     var id = uid();
-    state.rounds.push({ id:id, label:"Round " + (state.rounds.length+1) });
+    state.rounds.push({ id:id, label:"Round " + (state.rounds.length+1), isTest:false });
     state.currentRoundId = id;
+    persistAndRender();
+    renderDrawer();
+    renderQuestionsScreen();
+  });
+
+  addTestRoundBtn.addEventListener("click", function(){
+    var id = uid();
+    state.rounds.push({ id:id, label:"🧪 Test Round", isTest:true });
+    state.questions.push(
+      { id:uid(), roundId:id, text:"Test question 1 — just checking the flow works.", answer:"Any answer works, this is just a test", image:"", order:0 },
+      { id:uid(), roundId:id, text:"Test question 2 — try a picture reveal here if you like.", answer:"Still just testing", image:"", order:1 }
+    );
+    state.questionsCurrentRoundId = id;
     persistAndRender();
     renderDrawer();
     renderQuestionsScreen();
@@ -1443,11 +1517,10 @@
         input.value = (state.scores[team.id] && state.scores[team.id][round.id] != null) ? state.scores[team.id][round.id] : "";
         input.placeholder = "0";
         input.addEventListener("input", function(){
-          if(!state.scores[team.id]) state.scores[team.id] = {};
-          state.scores[team.id][round.id] = input.value === "" ? 0 : Number(input.value);
+          var value = input.value === "" ? 0 : Number(input.value);
+          setManualScore(team.id, round.id, value);
           state.isSample = false;
           renderBoard();
-          saveState();
           totalTd.textContent = teamTotal(team);
         });
         td.appendChild(input);
@@ -1832,6 +1905,8 @@
       delBtn.className = "icon-btn"; delBtn.textContent = "✕"; delBtn.title = "Delete";
       delBtn.addEventListener("click", function(){
         state.questions = state.questions.filter(function(x){ return x.id !== q.id; });
+        delete state.answers[q.id];
+        delete state.grades[q.id];
         if(editingQuestionId === q.id){ cancelQuestionForm(); }
         state.isSample = false;
         saveState();
@@ -1845,6 +1920,18 @@
   }
 
   function renderQuestionsScreen(){
+    if(!dataLoaded){
+      questionRoundTabs.innerHTML = "";
+      questionFormWrap.innerHTML = "";
+      questionList.innerHTML = "";
+      var loadingMsg = document.createElement("div");
+      loadingMsg.className = "empty-list";
+      loadingMsg.textContent = "⏳ Loading your saved questions…";
+      questionList.appendChild(loadingMsg);
+      presentRoundBtn.disabled = true;
+      presentAllBtn.disabled = true;
+      return;
+    }
     if(!state.questionsCurrentRoundId || !state.rounds.some(function(r){ return r.id === state.questionsCurrentRoundId; })){
       state.questionsCurrentRoundId = state.rounds[0] ? state.rounds[0].id : null;
     }
@@ -1866,9 +1953,14 @@
   questionsToggle.addEventListener("click", openQuestionsScreen);
   questionsClose.addEventListener("click", closeQuestions);
   openQuestionsFromDrawer.addEventListener("click", openQuestionsScreen);
-  presentAllFromDrawer.addEventListener("click", function(){ startPresentation(state.rounds.map(function(r){ return r.id; })); });
+  function realGameRoundIds(){
+    // "Present Full Game" only ever walks the real rounds - test rounds are
+    // for rehearsing and must never accidentally show up during the party.
+    return state.rounds.filter(function(r){ return !r.isTest; }).map(function(r){ return r.id; });
+  }
+  presentAllFromDrawer.addEventListener("click", function(){ startPresentation(realGameRoundIds()); });
   presentRoundBtn.addEventListener("click", function(){ startPresentation([state.questionsCurrentRoundId]); });
-  presentAllBtn.addEventListener("click", function(){ startPresentation(state.rounds.map(function(r){ return r.id; })); });
+  presentAllBtn.addEventListener("click", function(){ startPresentation(realGameRoundIds()); });
 
   // ---------- Present mode ----------
   // A round goes through three phases, tracked in state.present so every
@@ -2683,8 +2775,12 @@
         state = defaultState();
         try{ gameRef.set(state); }catch(e){}
       }
+      dataLoaded = true;
       renderAll();
     }, function(){
+      // Firebase couldn't be reached (offline, blocked, denied) - fall back to
+      // whatever's cached locally rather than spinning on "Loading" forever.
+      dataLoaded = true;
       renderAll();
     });
   } else {
