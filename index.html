@@ -558,6 +558,11 @@
     overflow-wrap:anywhere; padding-left:calc(1.5rem + 0.6rem);
   }
   .pa-grades{ display:flex; gap:0.4rem; flex:0 0 auto; }
+  .pa-wager-tag{
+    font-family:'Oswald', sans-serif; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.5px;
+    color:var(--brass-2); background: rgba(212,165,69,0.15); border:1px solid rgba(212,165,69,0.4);
+    border-radius:999px; padding:0.15rem 0.5rem; flex:0 0 auto; white-space:nowrap;
+  }
   .pa-grade-btn{
     flex:0 0 auto; width:2.1rem; height:2.1rem; border-radius:8px; border:1px solid rgba(241,232,214,0.35);
     background: rgba(0,0,0,0.25); color:var(--chalk); cursor:pointer; font-size:1rem; font-weight:700;
@@ -836,7 +841,11 @@
         <button class="btn btn-ghost" id="addRoundBtn">+ Add Round</button>
         <button class="btn btn-ghost" id="addTestRoundBtn" title="Adds a round with sample questions for testing — never shown in Present Full Game and never counts toward scores">🧪 Add Test Round</button>
       </div>
-      <div class="note" style="margin-top:0.75rem;">Test rounds (🧪) are for rehearsing the flow — they're skipped by "Present Full Game" and their points never count toward the real leaderboard.</div>
+      <div class="field-row" style="margin-top:0.5rem;">
+        <button class="btn btn-ghost" id="addWagerRoundBtn" title="Teams wager 0-10 points on your phone before the question, then win or lose exactly what they wagered">💰 Add Wager Round</button>
+        <button class="btn btn-ghost" id="addTiebreakerRoundBtn" title="Teams guess a number; whoever's closest to the real answer wins">🎯 Add Tiebreaker Round</button>
+      </div>
+      <div class="note" style="margin-top:0.75rem;">🧪 Test rounds rehearse the flow and never count. 💰 Wager rounds let teams risk 0–10 points on one final question — correct wins the wager, wrong loses it. 🎯 Tiebreaker rounds ask for a numeric guess; whoever's closest wins when judging.</div>
     </section>
 
     <section class="panel">
@@ -1118,6 +1127,7 @@
       ],
       answers: {},
       grades: {},
+      wagers: {},
       present: { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 },
       isSample: true
     };
@@ -1137,12 +1147,17 @@
     if(!loaded){ return defaultState(); }
     loaded.rounds = toArray(loaded.rounds);
     if(!loaded.rounds.length){ return defaultState(); }
-    loaded.rounds.forEach(function(r){ if(r.isTest === undefined) r.isTest = false; });
+    loaded.rounds.forEach(function(r){
+      if(r.isTest === undefined) r.isTest = false;
+      if(r.isWager === undefined) r.isWager = false;
+      if(r.isTiebreaker === undefined) r.isTiebreaker = false;
+    });
     loaded.teams = toArray(loaded.teams);
     loaded.questions = toArray(loaded.questions);
     if(!loaded.scores) loaded.scores = {};
     if(!loaded.answers) loaded.answers = {};
     if(!loaded.grades) loaded.grades = {};
+    if(!loaded.wagers) loaded.wagers = {};
     if(!loaded.present) loaded.present = { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 };
     loaded.present.roundIds = toArray(loaded.present.roundIds);
     if(!loaded.questionsCurrentRoundId) loaded.questionsCurrentRoundId = loaded.rounds[0].id;
@@ -1194,15 +1209,28 @@
     return !!(round && round.isTest);
   }
 
+  function roundForId(roundId){
+    return (state.rounds||[]).filter(function(r){ return r.id === roundId; })[0] || null;
+  }
+
   function gradedPointsForTeam(teamId){
     var pts = 0;
     if(state.grades){
       for(var qid in state.grades){
         if(!Object.prototype.hasOwnProperty.call(state.grades, qid)) continue;
-        if(state.grades[qid][teamId] !== true) continue;
+        var grade = state.grades[qid][teamId];
+        if(grade !== true && grade !== false) continue;
         var q = (state.questions||[]).filter(function(x){ return x.id === qid; })[0];
-        if(q && isTestRound(q.roundId)) continue; // test-round grading never counts toward real scores
-        pts += 1;
+        if(!q) continue;
+        var round = roundForId(q.roundId);
+        if(round && round.isTest) continue; // test-round grading never counts toward real scores
+        if(round && round.isWager){
+          // Wager rounds win or lose exactly what the team risked, not a flat point.
+          var wager = (state.wagers && state.wagers[round.id] && Number(state.wagers[round.id][teamId])) || 0;
+          pts += grade === true ? wager : -wager;
+        } else if(grade === true){
+          pts += 1;
+        }
       }
     }
     return pts;
@@ -1428,6 +1456,8 @@
   var roundList = document.getElementById("roundList");
   var addRoundBtn = document.getElementById("addRoundBtn");
   var addTestRoundBtn = document.getElementById("addTestRoundBtn");
+  var addWagerRoundBtn = document.getElementById("addWagerRoundBtn");
+  var addTiebreakerRoundBtn = document.getElementById("addTiebreakerRoundBtn");
 
   function removeRoundData(roundId){
     // Clean up everything tied to a round so no orphaned points can ever
@@ -1443,6 +1473,7 @@
         delete state.scores[teamId][roundId];
       }
     }
+    delete state.wagers[roundId];
   }
 
   function renderRoundList(){
@@ -1455,10 +1486,12 @@
       radio.className = "radio";
       row.appendChild(radio);
 
-      if(round.isTest){
+      if(round.isTest || round.isWager || round.isTiebreaker){
         var badge = document.createElement("span");
-        badge.textContent = "🧪";
-        badge.title = "Test round — excluded from Present Full Game and real scores";
+        badge.textContent = round.isTest ? "🧪" : round.isWager ? "💰" : "🎯";
+        badge.title = round.isTest ? "Test round — excluded from Present Full Game and real scores"
+          : round.isWager ? "Wager round — teams bet 0-10 points, win or lose it on this question"
+          : "Tiebreaker round — closest numeric guess wins";
         badge.style.flex = "0 0 auto";
         row.appendChild(badge);
       }
@@ -1523,6 +1556,24 @@
     persistAndRender();
     renderDrawer();
     renderQuestionsScreen();
+  });
+
+  addWagerRoundBtn.addEventListener("click", function(){
+    var id = uid();
+    state.rounds.push({ id:id, label:"Final Wager", isTest:false, isWager:true, isTiebreaker:false });
+    state.questionsCurrentRoundId = id;
+    persistAndRender();
+    renderDrawer();
+    openQuestionsScreen();
+  });
+
+  addTiebreakerRoundBtn.addEventListener("click", function(){
+    var id = uid();
+    state.rounds.push({ id:id, label:"Tiebreaker", isTest:false, isWager:false, isTiebreaker:true });
+    state.questionsCurrentRoundId = id;
+    persistAndRender();
+    renderDrawer();
+    openQuestionsScreen();
   });
 
   var scoreGrid = document.getElementById("scoreGrid");
@@ -1738,7 +1789,8 @@
       var tab = document.createElement("button");
       tab.type = "button";
       tab.className = "round-tab" + (round.id === state.questionsCurrentRoundId ? " active" : "");
-      tab.innerHTML = (round.isTest ? "🧪 " : "") + escapeHtml(round.label) + '<span class="count">(' + questionsForRound(round.id).length + ')</span>';
+      var roundBadgeIcon = round.isTest ? "🧪 " : round.isWager ? "💰 " : round.isTiebreaker ? "🎯 " : "";
+      tab.innerHTML = roundBadgeIcon + escapeHtml(round.label) + '<span class="count">(' + questionsForRound(round.id).length + ')</span>';
       tab.addEventListener("click", function(){
         state.questionsCurrentRoundId = round.id;
         cancelQuestionForm();
@@ -1760,6 +1812,17 @@
     questionFormWrap.innerHTML = "";
     var wrap = document.createElement("div");
     wrap.className = "qform";
+
+    var activeRound = roundForId(state.questionsCurrentRoundId);
+    if(activeRound && (activeRound.isWager || activeRound.isTiebreaker)){
+      var hint = document.createElement("div");
+      hint.className = "note";
+      hint.style.marginBottom = "0.25rem";
+      hint.textContent = activeRound.isWager
+        ? "💰 Wager round: teams bet 0–10 points on their phones before this question is asked, then win or lose exactly what they bet."
+        : "🎯 Tiebreaker round: teams submit a numeric guess. Make the Answer field a number (e.g. 42) so judging can sort by closest guess.";
+      wrap.appendChild(hint);
+    }
 
     var textLabel = document.createElement("label");
     textLabel.textContent = "Question";
@@ -2109,6 +2172,10 @@
 
   // ----- Main screen: start/cancel a presentation, and the "ask" pass -----
 
+  function initialPhaseForRound(round){
+    return (round && round.isWager) ? "wager" : "ask";
+  }
+
   function startPresentation(roundIds){
     var filtered = (roundIds||[]).filter(function(rid){ return questionsForRound(rid).length > 0; });
     if(filtered.length === 0){
@@ -2116,8 +2183,9 @@
       return;
     }
     closeDrawer(); closeSignup(); closeQuestions(); closeQr(); closeJudgeQr();
-    state.present = { active:true, roundIds:filtered, roundIndex:0, phase:"ask", qIndex:0 };
-    pushCurrentQuestion(questionsForRound(filtered[0])[0].id);
+    var phase0 = initialPhaseForRound(roundForId(filtered[0]));
+    state.present = { active:true, roundIds:filtered, roundIndex:0, phase:phase0, qIndex:0 };
+    pushCurrentQuestion(phase0 === "ask" ? questionsForRound(filtered[0])[0].id : null);
     pushPresent();
     applyMainPresentState();
   }
@@ -2133,6 +2201,14 @@
     var p = state.present;
     if(!p.active) return;
     if(p.phase === "done"){ mainClosePresent(); return; }
+    if(p.phase === "wager"){
+      p.phase = "ask";
+      p.qIndex = 0;
+      pushCurrentQuestion(currentPresentQueue()[0].id);
+      pushPresent();
+      applyMainPresentState();
+      return;
+    }
     if(p.phase !== "ask") return;
     var queue = currentPresentQueue();
     if(p.qIndex < queue.length - 1){
@@ -2149,7 +2225,18 @@
 
   function mainPresentPrev(){
     var p = state.present;
-    if(!p.active || p.phase !== "ask" || p.qIndex === 0) return;
+    if(!p.active) return;
+    if(p.phase === "ask" && p.qIndex === 0){
+      var round = roundForId(p.roundIds[p.roundIndex]);
+      if(round && round.isWager){
+        p.phase = "wager";
+        pushCurrentQuestion(null);
+        pushPresent();
+        applyMainPresentState();
+      }
+      return;
+    }
+    if(p.phase !== "ask" || p.qIndex === 0) return;
     p.qIndex--;
     pushCurrentQuestion(currentPresentQueue()[p.qIndex].id);
     pushPresent();
@@ -2184,6 +2271,34 @@
       presentNext.hidden = false;
       presentNext.disabled = false;
       presentNext.textContent = "Close";
+      presentRevealBtn.hidden = true;
+      return;
+    }
+
+    if(p.phase === "wager"){
+      var wagerRound = roundForId(p.roundIds[p.roundIndex]) || { label:"" };
+      presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
+      presentProgress.innerHTML = escapeHtml(wagerRound.label) + " &middot; Final Wager";
+      presentStage.innerHTML = "";
+
+      var wEl = document.createElement("div");
+      wEl.className = "present-question";
+      wEl.textContent = "💰 Lock in your wager (0–10 points) on your phones!";
+      presentStage.appendChild(wEl);
+
+      var wagersObj = (state.wagers && state.wagers[wagerRound.id]) || {};
+      var wagerCount = Object.keys(wagersObj).length;
+      var totalTeamsW = (state.teams||[]).length;
+      var wCounter = document.createElement("div");
+      wCounter.className = "present-answers-head";
+      wCounter.style.opacity = "0.85";
+      wCounter.textContent = "💰 " + wagerCount + " of " + totalTeamsW + " teams have wagered";
+      presentStage.appendChild(wCounter);
+
+      presentPrev.hidden = true;
+      presentNext.hidden = false;
+      presentNext.disabled = false;
+      presentNext.textContent = "Start Question →";
       presentRevealBtn.hidden = true;
       return;
     }
@@ -2262,11 +2377,31 @@
     container.innerHTML = "";
     var answersForQ = (state.answers && state.answers[q.id]) || {};
     var gradesForQ = (state.grades && state.grades[q.id]) || {};
-    var teams = (state.teams||[]).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var round = roundForId(q.roundId) || {};
+    var wagersForRound = (state.wagers && state.wagers[q.roundId]) || {};
+    var correctNum = round.isTiebreaker ? parseFloat(q.answer) : NaN;
+    var haveCorrectNum = round.isTiebreaker && !isNaN(correctNum);
+
+    var teams = (state.teams||[]).slice();
+    if(haveCorrectNum){
+      teams.sort(function(a,b){
+        var distA = distanceForTeam(a);
+        var distB = distanceForTeam(b);
+        return distA - distB;
+      });
+    } else {
+      teams.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    }
+
+    function distanceForTeam(team){
+      var ans = answersForQ[team.id];
+      var guess = ans ? parseFloat(ans.text) : NaN;
+      return isNaN(guess) ? Infinity : Math.abs(guess - correctNum);
+    }
 
     var head = document.createElement("div");
     head.className = "present-answers-head";
-    head.textContent = "📱 Team Answers — mark each correct or incorrect";
+    head.textContent = round.isTiebreaker ? "🎯 Sorted closest guess first" : "📱 Team Answers — mark each correct or incorrect";
     container.appendChild(head);
 
     if(teams.length === 0){
@@ -2278,7 +2413,7 @@
       return;
     }
 
-    teams.forEach(function(team){
+    teams.forEach(function(team, idx){
       var row = document.createElement("div");
       row.className = "pa-row";
 
@@ -2295,6 +2430,19 @@
       nameEl.textContent = team.name;
       rhead.appendChild(nameEl);
 
+      if(round.isWager){
+        var wagerAmt = wagersForRound[team.id];
+        var wagerTag = document.createElement("span");
+        wagerTag.className = "pa-wager-tag";
+        wagerTag.textContent = (wagerAmt != null ? wagerAmt : 0) + " pt wager";
+        rhead.appendChild(wagerTag);
+      } else if(haveCorrectNum && idx === 0 && distanceForTeam(team) !== Infinity){
+        var closestTag = document.createElement("span");
+        closestTag.className = "pa-wager-tag";
+        closestTag.textContent = "🎯 Closest";
+        rhead.appendChild(closestTag);
+      }
+
       var grade = gradesForQ[team.id];
       var gradesWrap = document.createElement("span");
       gradesWrap.className = "pa-grades";
@@ -2302,14 +2450,14 @@
       var correctBtn = document.createElement("button");
       correctBtn.className = "pa-grade-btn correct" + (grade === true ? " active" : "");
       correctBtn.textContent = "✓";
-      correctBtn.title = "Mark correct";
+      correctBtn.title = round.isWager ? "Mark correct — awards the wagered points" : "Mark correct";
       correctBtn.addEventListener("click", function(){ setGrade(q.id, team.id, grade === true ? null : true); });
       gradesWrap.appendChild(correctBtn);
 
       var incorrectBtn = document.createElement("button");
       incorrectBtn.className = "pa-grade-btn incorrect" + (grade === false ? " active" : "");
       incorrectBtn.textContent = "✗";
-      incorrectBtn.title = "Mark incorrect";
+      incorrectBtn.title = round.isWager ? "Mark incorrect — deducts the wagered points" : "Mark incorrect";
       incorrectBtn.addEventListener("click", function(){ setGrade(q.id, team.id, grade === false ? null : false); });
       gradesWrap.appendChild(incorrectBtn);
 
@@ -2319,7 +2467,12 @@
       var ans = answersForQ[team.id];
       var textEl = document.createElement("div");
       textEl.className = "pa-text";
-      textEl.textContent = ans ? ans.text : "(no answer submitted)";
+      if(ans && haveCorrectNum){
+        var dist = distanceForTeam(team);
+        textEl.textContent = ans.text + (dist !== Infinity ? " (off by " + dist + ")" : " (not a number)");
+      } else {
+        textEl.textContent = ans ? ans.text : "(no answer submitted)";
+      }
       if(!ans){ textEl.style.opacity = "0.55"; textEl.style.fontStyle = "italic"; }
       row.appendChild(textEl);
 
@@ -2343,9 +2496,10 @@
         p.qIndex++;
       } else if(p.roundIndex < p.roundIds.length - 1){
         p.roundIndex++;
-        p.phase = "ask";
+        var nextRound = roundForId(p.roundIds[p.roundIndex]);
+        p.phase = initialPhaseForRound(nextRound);
         p.qIndex = 0;
-        pushCurrentQuestion(questionsForRound(p.roundIds[p.roundIndex])[0].id);
+        pushCurrentQuestion(p.phase === "ask" ? questionsForRound(p.roundIds[p.roundIndex])[0].id : null);
       } else {
         p.phase = "done";
       }
@@ -2384,6 +2538,17 @@
       askMsg.className = "play-status";
       askMsg.textContent = escapeHtml(round.label) + " — the host is still asking questions. Judging starts once they finish.";
       judgeCard.appendChild(askMsg);
+      return;
+    }
+
+    if(p.phase === "wager"){
+      var wagersObjJ = (state.wagers && state.wagers[round.id]) || {};
+      var wagerCountJ = Object.keys(wagersObjJ).length;
+      var totalTeamsJ = (state.teams||[]).length;
+      var wagerMsg = document.createElement("div");
+      wagerMsg.className = "play-status";
+      wagerMsg.textContent = escapeHtml(round.label) + " — teams are locking in wagers (" + wagerCountJ + " of " + totalTeamsJ + "). Judging starts once the host moves to the question.";
+      judgeCard.appendChild(wagerMsg);
       return;
     }
 
@@ -2464,7 +2629,7 @@
   // ---------- Reset ----------
   document.getElementById("resetBtn").addEventListener("click", function(){
     if(confirm("Reset all teams, rounds, scores and questions? This can't be undone.")){
-      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1"}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, grades:{}, present:{active:false,roundIds:[],roundIndex:0,phase:"ask",qIndex:0}, isSample:false };
+      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1", isTest:false, isWager:false, isTiebreaker:false}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, grades:{}, wagers:{}, present:{active:false,roundIds:[],roundIndex:0,phase:"ask",qIndex:0}, isSample:false };
       state.currentRoundId = state.rounds[0].id;
       state.questionsCurrentRoundId = state.rounds[0].id;
       persistAndRender();
@@ -2623,6 +2788,21 @@
     renderPlayScreen();
   }
 
+  function playSubmitWager(roundId, amount){
+    var myId = null;
+    try{ myId = localStorage.getItem("myTeamId"); }catch(e){}
+    if(!myId) return;
+    if(!state.wagers) state.wagers = {};
+    if(!state.wagers[roundId]) state.wagers[roundId] = {};
+    state.wagers[roundId][myId] = amount;
+    if(fbEnabled && gameRef){
+      try{ gameRef.child("wagers/"+roundId+"/"+myId).set(amount); }catch(e){}
+    } else {
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    }
+    renderPlayScreen();
+  }
+
   function renderPlayScreen(){
     if(!IS_PLAY_MODE) return;
     var myId = null;
@@ -2770,6 +2950,53 @@
     scoreEl.className = "play-score";
     scoreEl.textContent = teamTotal(myTeam) + " pts";
     playCard.appendChild(scoreEl);
+
+    var pPhone = state.present;
+    if(pPhone && pPhone.active && pPhone.phase === "wager"){
+      var wagerRoundId = pPhone.roundIds[pPhone.roundIndex];
+      var wagerRoundP = (state.rounds||[]).filter(function(r){ return r.id===wagerRoundId; })[0];
+      var alreadyWagered = state.wagers && state.wagers[wagerRoundId] && state.wagers[wagerRoundId][myTeam.id];
+
+      var wagerRoundLbl = document.createElement("div");
+      wagerRoundLbl.className = "play-status";
+      wagerRoundLbl.textContent = wagerRoundP ? wagerRoundP.label : "Final Wager";
+      playCard.appendChild(wagerRoundLbl);
+
+      var wagerQ = document.createElement("div");
+      wagerQ.className = "play-question";
+      wagerQ.textContent = "💰 How many points (0–10) do you want to wager on this question?";
+      playCard.appendChild(wagerQ);
+
+      var wagerInput = document.createElement("input");
+      wagerInput.type = "number";
+      wagerInput.id = "playWagerInput";
+      wagerInput.min = "0";
+      wagerInput.max = "10";
+      wagerInput.step = "1";
+      wagerInput.placeholder = "0–10";
+      wagerInput.value = (alreadyWagered != null) ? alreadyWagered : "";
+      wagerInput.style.width = "100%";
+      wagerInput.style.fontSize = "1.3rem";
+      wagerInput.style.textAlign = "center";
+      playCard.appendChild(wagerInput);
+
+      var wagerBtn = document.createElement("button");
+      wagerBtn.className = "btn btn-primary";
+      wagerBtn.textContent = (alreadyWagered != null) ? "Update Wager" : "Lock In Wager";
+      wagerBtn.addEventListener("click", function(){
+        var val = Math.max(0, Math.min(10, Math.round(Number(wagerInput.value) || 0)));
+        playSubmitWager(wagerRoundId, val);
+      });
+      playCard.appendChild(wagerBtn);
+
+      if(alreadyWagered != null){
+        var wagerLockNote = document.createElement("div");
+        wagerLockNote.className = "play-locked";
+        wagerLockNote.innerHTML = '<span class="lbl">Wagered</span>✅ ' + alreadyWagered + ' point' + (alreadyWagered===1?"":"s") + ' locked in — waiting for the question.';
+        playCard.appendChild(wagerLockNote);
+      }
+      return;
+    }
 
     var q = state.currentQuestionId ? (state.questions||[]).filter(function(x){ return x.id===state.currentQuestionId; })[0] : null;
 
