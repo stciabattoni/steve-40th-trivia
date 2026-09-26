@@ -621,6 +621,11 @@
     padding:0.65rem 0.5rem; border-radius:10px; cursor:pointer;
   }
   .avatar-mode-tab.active{ background:var(--surface-2); border-color:var(--brass); color:var(--chalk); }
+  .photo-nudge{
+    background:#fff8e6; border:2px solid var(--brass); border-radius:10px;
+    padding:0.6rem 0.85rem; font-size:0.95rem; color:#4a3510; text-align:left;
+    font-family:'Inter', sans-serif; line-height:1.4;
+  }
   .avatar-photo-section{ display:flex; flex-direction:column; align-items:center; gap:0.85rem; }
   .avatar-photo-section[hidden]{ display:none; }
   .avatar-photo-preview{
@@ -717,7 +722,7 @@
   <div class="qr-card">
     <button class="qr-x" id="qrCloseX" aria-label="Close" title="Close">✕</button>
     <h2>Join on Your Phone</h2>
-    <p>Scan this code, pick your team name &amp; logo, and submit answers live from your seat.</p>
+    <p>Scan this code, pick your team name, snap a team photo 📸, and submit answers live from your seat.</p>
     <div id="qrCanvas"></div>
     <div class="qr-url" id="qrUrlText"></div>
     <button class="btn btn-ghost" id="qrClose">Close</button>
@@ -845,7 +850,7 @@
         <button class="btn btn-ghost" id="addWagerRoundBtn" title="Teams wager 0-10 points on your phone before the question, then win or lose exactly what they wagered">💰 Add Wager Round</button>
         <button class="btn btn-ghost" id="addTiebreakerRoundBtn" title="Teams guess a number; whoever's closest to the real answer wins">🎯 Add Tiebreaker Round</button>
       </div>
-      <div class="note" style="margin-top:0.75rem;">🧪 Test rounds rehearse the flow and never count. 💰 Wager rounds let teams risk 0–10 points on one final question — correct wins the wager, wrong loses it. 🎯 Tiebreaker rounds ask for a numeric guess; whoever's closest wins when judging.</div>
+      <div class="note" style="margin-top:0.75rem;">🧪 Test rounds rehearse the flow and never count. 💰 Wager rounds show teams the round's name as the category before they bet 0–10 points on one final question — rename it to the real category (e.g. "80s Movies") before presenting. Correct wins the wager, wrong loses it. 🎯 Tiebreaker rounds ask for a numeric guess; whoever's closest wins when judging. Use the ▶ button next to any round to present it immediately.</div>
     </section>
 
     <section class="panel">
@@ -1508,6 +1513,16 @@
         renderQuestionsScreen();
       });
       row.appendChild(nameInput);
+
+      var presentBtn = document.createElement("button");
+      presentBtn.className = "icon-btn";
+      presentBtn.textContent = "▶";
+      presentBtn.title = "Present this round now";
+      presentBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        startPresentation([round.id]);
+      });
+      row.appendChild(presentBtn);
 
       var delBtn = document.createElement("button");
       delBtn.className = "icon-btn";
@@ -2278,11 +2293,22 @@
     if(p.phase === "wager"){
       var wagerRound = roundForId(p.roundIds[p.roundIndex]) || { label:"" };
       presentOverlay.style.backgroundColor = PHL_SLIDE_COLORS[0];
-      presentProgress.innerHTML = escapeHtml(wagerRound.label) + " &middot; Place Your Wager";
+      presentProgress.innerHTML = "Final Wager Round";
       presentStage.innerHTML = "";
 
+      var catLabel = document.createElement("div");
+      catLabel.className = "present-answers-head";
+      catLabel.style.opacity = "0.85";
+      catLabel.textContent = "Category";
+      presentStage.appendChild(catLabel);
+
+      var catEl = document.createElement("div");
+      catEl.className = "present-question";
+      catEl.textContent = wagerRound.label;
+      presentStage.appendChild(catEl);
+
       var wEl = document.createElement("div");
-      wEl.className = "present-question";
+      wEl.className = "present-answer shown";
       wEl.textContent = "💰 Lock in your wager (0–10 points) on your phones!";
       presentStage.appendChild(wEl);
 
@@ -2773,6 +2799,12 @@
     renderPlayScreen();
   }
 
+  // Firebase's onValue listener rebuilds the whole play screen on every
+  // sync (another team answering, host advancing, etc.) - without this
+  // draft buffer that rebuild wipes out whatever the player is mid-typing.
+  var playAnswerDraft = { qid:null, text:"", wasTyping:false };
+  var playWagerDraft = { roundId:null, text:"", wasTyping:false };
+
   function playSubmitAnswer(questionId, text){
     var myId = null;
     try{ myId = localStorage.getItem("myTeamId"); }catch(e){}
@@ -2842,6 +2874,11 @@
       tabsWrap.appendChild(iconTab);
       tabsWrap.appendChild(photoTab);
       playCard.appendChild(tabsWrap);
+
+      var photoNudge = document.createElement("div");
+      photoNudge.className = "photo-nudge";
+      photoNudge.textContent = "📸 Snap a team photo! It shows up on the big screen all night — tap \"Add a Photo\" above.";
+      playCard.appendChild(photoNudge);
 
       var label2 = document.createElement("div");
       label2.className = "signup-label";
@@ -2959,13 +2996,20 @@
 
       var wagerRoundLbl = document.createElement("div");
       wagerRoundLbl.className = "play-status";
-      wagerRoundLbl.textContent = wagerRoundP ? wagerRoundP.label : "Final Wager";
+      wagerRoundLbl.textContent = "Category";
       playCard.appendChild(wagerRoundLbl);
 
+      var wagerCatEl = document.createElement("div");
+      wagerCatEl.className = "play-question";
+      wagerCatEl.textContent = wagerRoundP ? wagerRoundP.label : "Final Wager";
+      playCard.appendChild(wagerCatEl);
+
       var wagerQ = document.createElement("div");
-      wagerQ.className = "play-question";
-      wagerQ.textContent = "💰 How many points (0–10) do you want to wager on this question?";
+      wagerQ.className = "play-status";
+      wagerQ.textContent = "💰 How many points (0–10) do you want to wager?";
       playCard.appendChild(wagerQ);
+
+      var usingWagerDraft = playWagerDraft.roundId === wagerRoundId;
 
       var wagerInput = document.createElement("input");
       wagerInput.type = "number";
@@ -2974,17 +3018,35 @@
       wagerInput.max = "10";
       wagerInput.step = "1";
       wagerInput.placeholder = "0–10";
-      wagerInput.value = (alreadyWagered != null) ? alreadyWagered : "";
+      wagerInput.value = usingWagerDraft ? playWagerDraft.text : ((alreadyWagered != null) ? alreadyWagered : "");
       wagerInput.style.width = "100%";
       wagerInput.style.fontSize = "1.3rem";
       wagerInput.style.textAlign = "center";
+      wagerInput.addEventListener("input", function(){
+        if(wagerInput.value !== ""){
+          var clamped = Math.max(0, Math.min(10, Math.round(Number(wagerInput.value) || 0)));
+          if(String(clamped) !== wagerInput.value){ wagerInput.value = clamped; }
+        }
+        playWagerDraft = { roundId: wagerRoundId, text: wagerInput.value, wasTyping: true };
+      });
       playCard.appendChild(wagerInput);
+
+      if(usingWagerDraft && playWagerDraft.wasTyping){
+        wagerInput.focus();
+      }
+
+      var wagerMaxHint = document.createElement("div");
+      wagerMaxHint.className = "play-status";
+      wagerMaxHint.style.fontSize = "0.7rem";
+      wagerMaxHint.textContent = "Max 10 points";
+      playCard.appendChild(wagerMaxHint);
 
       var wagerBtn = document.createElement("button");
       wagerBtn.className = "btn btn-primary";
       wagerBtn.textContent = (alreadyWagered != null) ? "Update Wager" : "Lock In Wager";
       wagerBtn.addEventListener("click", function(){
         var val = Math.max(0, Math.min(10, Math.round(Number(wagerInput.value) || 0)));
+        playWagerDraft = { roundId:null, text:"", wasTyping:false };
         playSubmitWager(wagerRoundId, val);
       });
       playCard.appendChild(wagerBtn);
@@ -3029,11 +3091,22 @@
       playCard.appendChild(img);
     }
 
+    var usingDraft = playAnswerDraft.qid === q.id;
     var textarea = document.createElement("textarea");
     textarea.id = "playAnswerInput";
     textarea.placeholder = "Type your answer…";
-    textarea.value = already ? already.text : "";
+    textarea.value = usingDraft ? playAnswerDraft.text : (already ? already.text : "");
     playCard.appendChild(textarea);
+
+    if(usingDraft && playAnswerDraft.wasTyping){
+      textarea.focus();
+      var caretPos = textarea.value.length;
+      textarea.setSelectionRange(caretPos, caretPos);
+    }
+
+    textarea.addEventListener("input", function(){
+      playAnswerDraft = { qid: q.id, text: textarea.value, wasTyping: true };
+    });
 
     var submitBtn = document.createElement("button");
     submitBtn.className = "btn btn-primary";
@@ -3041,6 +3114,7 @@
     submitBtn.addEventListener("click", function(){
       var txt = textarea.value.trim();
       if(!txt) return;
+      playAnswerDraft = { qid:null, text:"", wasTyping:false };
       playSubmitAnswer(q.id, txt);
     });
     playCard.appendChild(submitBtn);
