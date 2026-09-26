@@ -2654,10 +2654,20 @@
 
   // ---------- Reset ----------
   document.getElementById("resetBtn").addEventListener("click", function(){
-    if(confirm("Reset all teams, rounds, scores and questions? This can't be undone.")){
-      state = { subtitle:"40th Birthday Bash", teams:[], rounds:[{id:uid(), label:"Round 1", isTest:false, isWager:false, isTiebreaker:false}], currentRoundId:null, questionsCurrentRoundId:null, currentQuestionId:null, scores:{}, questions:[], answers:{}, grades:{}, wagers:{}, present:{active:false,roundIds:[],roundIndex:0,phase:"ask",qIndex:0}, isSample:false };
-      state.currentRoundId = state.rounds[0].id;
-      state.questionsCurrentRoundId = state.rounds[0].id;
+    if(confirm("Reset all teams, scores and live game progress? Your rounds and questions are kept. This can't be undone.")){
+      // Clear game-night progress only - rounds/questions/subtitle are the
+      // host's authored content and should survive a reset.
+      state.teams = [];
+      state.scores = {};
+      state.answers = {};
+      state.grades = {};
+      state.wagers = {};
+      state.currentQuestionId = null;
+      state.present = { active:false, roundIds:[], roundIndex:0, phase:"ask", qIndex:0 };
+      if(state.rounds && state.rounds.length){
+        state.currentRoundId = state.rounds[0].id;
+        state.questionsCurrentRoundId = state.rounds[0].id;
+      }
       persistAndRender();
       renderDrawer();
       renderSignupRoster();
