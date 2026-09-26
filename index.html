@@ -2147,16 +2147,24 @@
   var PHL_SLIDE_COLORS = [getComputedColor("--phl-red"), getComputedColor("--phl-teal")];
 
   function pushCurrentQuestion(qid){
+    // Local-only: the Firebase write happens together with `present` in
+    // pushPresent() below, as a single atomic multi-path update. Writing
+    // these as two separate .set() calls let the sync listener briefly see
+    // a half-updated snapshot (new currentQuestionId, stale present, or
+    // vice versa), which could stomp the local optimistic state and close
+    // the presentation overlay right after opening it - requiring a second
+    // click to "stick".
     state.currentQuestionId = qid;
-    if(fbEnabled && gameRef){
-      try{ gameRef.child("currentQuestionId").set(qid || null); }catch(e){}
-    }
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
 
   function pushPresent(){
     if(fbEnabled && gameRef){
-      try{ gameRef.child("present").set(state.present); }catch(e){}
+      try{
+        gameRef.update({
+          present: state.present,
+          currentQuestionId: state.currentQuestionId || null
+        });
+      }catch(e){}
     }
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
